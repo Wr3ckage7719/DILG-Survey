@@ -168,11 +168,10 @@ export default function App() {
               exit={{ opacity: 0, x: -24 }}
               transition={{ duration: 0.2, ease: 'easeInOut' }}
             >
-              <StepIndicator currentIndex={sectionIdx} total={total} />
-
               <Card className="rounded-2xl shadow-sm border">
-                <CardContent className="p-6">
-                  <h2 className="text-sm font-semibold text-foreground mb-4">
+                <CardContent className="p-6 space-y-4">
+                  <StepIndicator currentIndex={sectionIdx} total={total} />
+                  <h2 className="text-sm font-semibold text-foreground">
                     {SECTION_LABELS[sectionId]}
                   </h2>
                   {renderSection()}
