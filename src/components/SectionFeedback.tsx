@@ -1,4 +1,8 @@
 import type { FormData } from '../types';
+import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Separator } from '@/components/ui/separator';
 
 interface Props {
   form: FormData;
@@ -7,60 +11,57 @@ interface Props {
 
 export default function SectionFeedback({ form, onChange }: Props) {
   return (
-    <div className="bg-white rounded-xl shadow-lg p-6">
-      <div className="mb-6">
-        <h3 className="text-sm font-semibold text-gray-800 mb-2">Mga mungkahi</h3>
-        <label className="block text-xs text-gray-500 mb-2">
-          Paano pa mapapabuti ang aming serbisyo?
-        </label>
-        <textarea
-          className="w-full border border-gray-300 rounded-lg px-3 py-3 text-sm h-32 resize-none"
-          placeholder="Isulat ang inyong mungkahi..."
-          value={form.mgaMungkahi}
-          onChange={(e) => onChange({ mgaMungkahi: e.target.value })}
-        />
-      </div>
+    <Card className="rounded-2xl shadow-sm border">
+      <CardContent className="p-6 space-y-5">
+        <div className="space-y-2">
+          <h3 className="text-sm font-semibold text-foreground">Mga mungkahi</h3>
+          <label className="block text-sm text-muted-foreground">
+            Paano pa mapapabuti ang aming serbisyo?
+          </label>
+          <Textarea
+            placeholder="Isulat ang inyong mungkahi..."
+            value={form.mgaMungkahi}
+            onChange={(e) => onChange({ mgaMungkahi: e.target.value })}
+            className="min-h-[120px] rounded-xl resize-none"
+          />
+        </div>
 
-      <hr className="my-4" />
+        <Separator />
 
-      <h3 className="text-sm font-semibold text-gray-800 mb-1">Impormasyon ng Kliyente</h3>
-      <p className="text-xs text-gray-400 mb-4">Hindi required. Punan lamang kung nais mong makontak ka namin.</p>
+        <div className="space-y-1">
+          <h3 className="text-sm font-semibold text-foreground">Impormasyon ng Kliyente</h3>
+          <p className="text-xs text-muted-foreground">Hindi required. Punan lamang kung nais mong makontak ka namin.</p>
+        </div>
 
-      <InputBlock
-        label="Pangalan (optional)"
-        value={form.pangalan}
-        onChange={(v) => onChange({ pangalan: v })}
-      />
-      <InputBlock
-        label="Contact number"
-        value={form.contactNumber}
-        onChange={(v) => onChange({ contactNumber: v })}
-      />
-      <InputBlock
-        label="Email address"
-        value={form.emailAddress}
-        onChange={(v) => onChange({ emailAddress: v })}
-        type="email"
-      />
-    </div>
-  );
-}
-
-function InputBlock(props: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  type?: string;
-}) {
-  return (
-    <div className="mb-4">
-      <label className="block text-xs font-semibold text-gray-600 mb-1">{props.label}</label>
-      <input
-        type={props.type || 'text'}
-        className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm"
-        value={props.value}
-        onChange={(e) => props.onChange(e.target.value)}
-      />
-    </div>
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium text-foreground">Pangalan (optional)</label>
+          <Input
+            value={form.pangalan}
+            onChange={(e) => onChange({ pangalan: e.target.value })}
+            placeholder="Pangalan"
+            className="rounded-xl"
+          />
+        </div>
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium text-foreground">Contact number</label>
+          <Input
+            value={form.contactNumber}
+            onChange={(e) => onChange({ contactNumber: e.target.value })}
+            placeholder="Contact number"
+            className="rounded-xl"
+          />
+        </div>
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium text-foreground">Email address</label>
+          <Input
+            type="email"
+            value={form.emailAddress}
+            onChange={(e) => onChange({ emailAddress: e.target.value })}
+            placeholder="Email address"
+            className="rounded-xl"
+          />
+        </div>
+      </CardContent>
+    </Card>
   );
 }

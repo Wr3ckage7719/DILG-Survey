@@ -1,5 +1,6 @@
 import type { FormData } from '../types';
 import { CC1_OPTIONS, CC2_OPTIONS, CC3_OPTIONS } from '../data/questions';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 
 interface Props {
   num: 1 | 2 | 3;
@@ -22,25 +23,28 @@ export default function StepCC({ num, form, onChange }: Props) {
   const title = CC_TITLES[num];
 
   return (
-    <fieldset>
-      <legend className="text-sm font-semibold text-gray-800 mb-3">{title}</legend>
-      <div className="space-y-2">
+    <div className="space-y-2">
+      <p className="text-sm font-medium text-foreground">{title}</p>
+      <RadioGroup
+        value={form[key]}
+        onValueChange={(v) => onChange({ [key]: v } as Partial<FormData>)}
+      >
         {options.map((o, i) => (
-          <label
+          <div
             key={i}
-            className="flex items-start gap-3 py-2 px-3 rounded-lg hover:bg-blue-50 cursor-pointer border border-gray-100"
+            className={`flex items-start gap-3 rounded-xl border px-4 py-3 cursor-pointer transition-colors ${
+              form[key] === o
+                ? 'border-primary/50 bg-accent'
+                : 'border-input hover:bg-accent'
+            }`}
           >
-            <input
-              type="radio"
-              name={key}
-              className="accent-blue-700 mt-0.5"
-              checked={form[key] === o}
-              onChange={() => onChange({ [key]: o } as Partial<FormData>)}
-            />
-            <span className="text-sm">{o}</span>
-          </label>
+            <RadioGroupItem value={o} id={`${key}-${i}`} className="mt-0.5" />
+            <label htmlFor={`${key}-${i}`} className="text-sm cursor-pointer flex-1 leading-relaxed">
+              {o}
+            </label>
+          </div>
         ))}
-      </div>
-    </fieldset>
+      </RadioGroup>
+    </div>
   );
 }

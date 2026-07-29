@@ -1,5 +1,6 @@
 import type { FormData } from '../types';
 import { SQD_LABELS, SQD_OPTIONS } from '../data/questions';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 
 interface Props {
   index: number; // 0–8
@@ -12,33 +13,32 @@ export default function StepSQD({ index, form, onChange }: Props) {
   const value = form.sqd[index];
 
   return (
-    <fieldset>
-      <legend className="text-sm font-semibold text-gray-800 mb-3">{label}</legend>
-      <div className="space-y-1.5">
+    <div className="space-y-2">
+      <p className="text-sm font-medium text-foreground">{label}</p>
+      <RadioGroup
+        value={value}
+        onValueChange={(v) => {
+          const next = [...form.sqd];
+          next[index] = v;
+          onChange({ sqd: next });
+        }}
+      >
         {SQD_OPTIONS.map((opt) => (
-          <label
+          <div
             key={opt}
-            className={`flex items-center gap-3 py-2 px-3 rounded-lg cursor-pointer border ${
+            className={`flex items-center gap-3 rounded-xl border px-4 py-2.5 cursor-pointer transition-colors ${
               value === opt
-                ? 'border-blue-500 bg-blue-50'
-                : 'border-gray-100 hover:bg-blue-50'
+                ? 'border-primary/50 bg-accent'
+                : 'border-input hover:bg-accent'
             }`}
           >
-            <input
-              type="radio"
-              name={`sqd${index}`}
-              className="accent-blue-700"
-              checked={value === opt}
-              onChange={() => {
-                const next = [...form.sqd];
-                next[index] = opt;
-                onChange({ sqd: next });
-              }}
-            />
-            <span className="text-sm">{opt}</span>
-          </label>
+            <RadioGroupItem value={opt} id={`sqd${index}-${opt}`} />
+            <label htmlFor={`sqd${index}-${opt}`} className="text-sm cursor-pointer flex-1">
+              {opt}
+            </label>
+          </div>
         ))}
-      </div>
-    </fieldset>
+      </RadioGroup>
+    </div>
   );
 }
