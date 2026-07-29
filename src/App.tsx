@@ -1,35 +1,36 @@
 import { useState } from 'react';
-import { type FormData, STEPS, INITIAL_FORM } from './types';
+import { type FormData, SECTIONS, SECTION_LABELS, INITIAL_FORM } from './types';
 import { DISCLAIMER } from './data/questions';
 import { submitSurvey } from './api/submit';
 import StepOffice from './components/StepOffice';
 import StepDemographics from './components/StepDemographics';
-import StepCC from './components/StepCC';
-import StepSQD from './components/StepSQD';
-import StepMungkahi from './components/StepMungkahi';
-import StepContact from './components/StepContact';
+import SectionCC from './components/SectionCC';
+import SectionSQD from './components/SectionSQD';
+import SectionFeedback from './components/SectionFeedback';
 
 export default function App() {
-  const [step, setStep] = useState(0);
+  const [sectionIdx, setSectionIdx] = useState(0);
   const [form, setForm] = useState<FormData>(INITIAL_FORM);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState('');
   const [showDisclaimer, setShowDisclaimer] = useState(true);
 
   const update = (patch: Partial<FormData>) => setForm((f) => ({ ...f, ...patch }));
-  const stepId = STEPS[step];
-  const progress = Math.round(((step + 1) / STEPS.length) * 100);
+  const sectionId = SECTIONS[sectionIdx];
+  const total = SECTIONS.length;
+  const progress = Math.round(((sectionIdx + 1) / total) * 100);
+  const isLast = sectionIdx === total - 1;
 
   const next = () => {
-    if (step < STEPS.length - 1) {
-      setStep((s) => s + 1);
+    if (sectionIdx < total - 1) {
+      setSectionIdx((s) => s + 1);
       window.scrollTo(0, 0);
     }
   };
 
   const prev = () => {
-    if (step > 0) {
-      setStep((s) => s - 1);
+    if (sectionIdx > 0) {
+      setSectionIdx((s) => s - 1);
       window.scrollTo(0, 0);
     }
   };
@@ -89,30 +90,30 @@ export default function App() {
 
       <div className="flex-1 flex items-start justify-center p-4 pt-8 pb-32">
         <div className="max-w-lg w-full">
-          {/* Step indicator */}
-          <div className="text-xs text-gray-400 mb-4 text-center">
-            {step + 1} / {STEPS.length}
+          {/* Section title */}
+          <div className="text-center mb-6">
+            <div className="text-xs text-gray-400 mb-1">
+              {sectionIdx + 1} / {total}
+            </div>
+            <h2 className="text-sm font-bold text-blue-800">{SECTION_LABELS[sectionId]}</h2>
           </div>
 
-          {/* Render current step */}
-          {stepId === 'pangalan' && <StepOffice form={form} onChange={update} />}
-          {stepId === 'demographics' && <StepDemographics form={form} onChange={update} />}
-          {stepId === 'cc1' && <StepCC num={1} form={form} onChange={update} />}
-          {stepId === 'cc2' && <StepCC num={2} form={form} onChange={update} />}
-          {stepId === 'cc3' && <StepCC num={3} form={form} onChange={update} />}
-          {stepId.startsWith('sqd') && <StepSQD index={parseInt(stepId.slice(3))} form={form} onChange={update} />}
-          {stepId === 'mungkahi' && <StepMungkahi form={form} onChange={update} />}
-          {stepId === 'contact' && <StepContact form={form} onChange={update} />}
+          {/* Render current section */}
+          {sectionId === 'office' && <StepOffice form={form} onChange={update} />}
+          {sectionId === 'demographics' && <StepDemographics form={form} onChange={update} />}
+          {sectionId === 'cc' && <SectionCC form={form} onChange={update} />}
+          {sectionId === 'sqd' && <SectionSQD form={form} onChange={update} />}
+          {sectionId === 'feedback' && <SectionFeedback form={form} onChange={update} />}
 
           {/* Navigation */}
           <div className="fixed bottom-0 left-0 w-full bg-white border-t p-4 z-40">
             <div className="max-w-lg mx-auto flex gap-3">
-              {step > 0 && (
+              {sectionIdx > 0 && (
                 <button onClick={prev} className="flex-1 py-3 px-4 border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50">
                   ← Bumalik
                 </button>
               )}
-              {step < STEPS.length - 1 ? (
+              {!isLast ? (
                 <button onClick={next} className="flex-1 py-3 px-4 bg-blue-700 text-white rounded-lg text-sm font-medium hover:bg-blue-800">
                   Susunod →
                 </button>

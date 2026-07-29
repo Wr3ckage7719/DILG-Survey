@@ -1,7 +1,7 @@
 export interface FormData {
   pangalanNgTanggapan: string;
   serbisyongIbinigay: string;
-  serbisyongIba: string;           // "Other/s" follow-up text
+  serbisyongIba: string;
   uriNgKliyente: string;
   edad: string;
   kasarian: string;
@@ -9,49 +9,24 @@ export interface FormData {
   cc1: string;
   cc2: string;
   cc3: string;
-  sqd: string[];                   // 9 items: SQD0–SQD8
+  sqd: string[]; // 9 items: SQD0–SQD8
   mgaMungkahi: string;
   pangalan: string;
   contactNumber: string;
   emailAddress: string;
 }
 
-export type StepId =
-  | 'pangalan'
-  | 'demographics'
-  | 'cc1'
-  | 'cc2'
-  | 'cc3'
-  | 'sqd0'
-  | 'sqd1'
-  | 'sqd2'
-  | 'sqd3'
-  | 'sqd4'
-  | 'sqd5'
-  | 'sqd6'
-  | 'sqd7'
-  | 'sqd8'
-  | 'mungkahi'
-  | 'contact';
+export type SectionId = 'office' | 'demographics' | 'cc' | 'sqd' | 'feedback';
 
-export const STEPS: StepId[] = [
-  'pangalan',
-  'demographics',
-  'cc1',
-  'cc2',
-  'cc3',
-  'sqd0',
-  'sqd1',
-  'sqd2',
-  'sqd3',
-  'sqd4',
-  'sqd5',
-  'sqd6',
-  'sqd7',
-  'sqd8',
-  'mungkahi',
-  'contact',
-];
+export const SECTIONS: SectionId[] = ['office', 'demographics', 'cc', 'sqd', 'feedback'];
+
+export const SECTION_LABELS: Record<SectionId, string> = {
+  office: '1. Detalye ng Tanggapan',
+  demographics: '2. Demograpiko',
+  cc: '3. Gabay ng Mamamayan',
+  sqd: '4. Kalidad ng Serbisyo',
+  feedback: '5. Puná at Impormasyon',
+};
 
 export const INITIAL_FORM: FormData = {
   pangalanNgTanggapan: '',
@@ -64,7 +39,7 @@ export const INITIAL_FORM: FormData = {
   cc1: '',
   cc2: '',
   cc3: '',
-  sqd: ['', '', '', '', '', 'N/A', '', '', ''], // SQD5 default N/A
+  sqd: ['', '', '', '', '', 'N/A', '', '', ''],
   mgaMungkahi: '',
   pangalan: '',
   contactNumber: '',

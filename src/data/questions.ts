@@ -1,5 +1,3 @@
-import { type StepId } from '../types';
-
 export const DISCLAIMER = {
   title: 'Minamahal naming kliyente,',
   text: 'Pakisagutan ang sarbey na ito at ilahad ang inyong mga puna sa serbisyong aming binigay. ' +
@@ -122,15 +120,3 @@ export const SQD_LABELS = [
   'SQD7. Matulungin at magalang ang pakikitungo sa akin ng mga kawani.',
   'SQD8. Nakuha ko ang kinakailangan ko mula sa tanggapan. (Kung tinanggihan man, sapat na ipinaliwanag.)',
 ];
-
-export const SQD_LABEL_SHORT: Record<StepId, string> = {
-  sqd0: 'SQD0',
-  sqd1: 'SQD1',
-  sqd2: 'SQD2',
-  sqd3: 'SQD3',
-  sqd4: 'SQD4',
-  sqd5: 'SQD5',
-  sqd6: 'SQD6',
-  sqd7: 'SQD7',
-  sqd8: 'SQD8',
-} as Record<StepId, string>;
