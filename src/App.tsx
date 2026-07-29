@@ -163,7 +163,7 @@ export default function App() {
           <AnimatePresence mode="wait">
             <motion.div
               key={sectionId}
-              initial={{ opacity: 0, x: 24 }}
+              initial={false}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -24 }}
               transition={{ duration: 0.2, ease: 'easeInOut' }}
@@ -174,7 +174,7 @@ export default function App() {
                   <span>{sectionIdx + 1} / {total}</span>
                   <span className="font-medium">{SECTION_LABELS[sectionId]}</span>
                 </div>
-                <Progress value={((sectionIdx + 1) / total) * 100} className="h-1.5 rounded-full" />
+                <Progress value={((sectionIdx + 1) / total) * 100} className="h-2 rounded-full bg-muted" />
               </div>
               {renderSection()}
             </motion.div>
