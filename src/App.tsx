@@ -2,13 +2,12 @@ import { useState, useCallback } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { toast } from 'sonner';
 
-import { type FormData, SECTIONS, SECTION_LABELS, INITIAL_FORM } from './types';
+import { type FormData, SECTIONS, INITIAL_FORM } from './types';
 import { DISCLAIMER } from './data/questions';
 import { submitSurvey } from './api/submit';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Progress } from '@/components/ui/progress';
 import { Toaster } from '@/components/ui/sonner';
 
 import StepOffice from './components/StepOffice';
@@ -16,6 +15,7 @@ import StepDemographics from './components/StepDemographics';
 import SectionCC from './components/SectionCC';
 import SectionSQD from './components/SectionSQD';
 import SectionFeedback from './components/SectionFeedback';
+import StepIndicator from './components/StepIndicator';
 
 const REQUIRED_FIELDS: Record<string, (keyof FormData)[]> = {
   office: ['pangalanNgTanggapan', 'serbisyongIbinigay'],
@@ -168,13 +168,7 @@ export default function App() {
               exit={{ opacity: 0, x: -24 }}
               transition={{ duration: 0.2, ease: 'easeInOut' }}
             >
-              <div className="mb-4 space-y-1.5">
-                <div className="flex justify-between text-xs text-muted-foreground">
-                  <span>{sectionIdx + 1} / {total}</span>
-                  <span className="font-medium">{SECTION_LABELS[sectionId]}</span>
-                </div>
-                <Progress value={((sectionIdx + 1) / total) * 100} className="h-2 rounded-full bg-muted" />
-              </div>
+              <StepIndicator currentIndex={sectionIdx} total={total} currentSectionId={sectionId} />
 
               <Card className="rounded-2xl shadow-sm border">
                 <CardContent className="p-6">
