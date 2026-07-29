@@ -32,16 +32,15 @@ export default function StepCC({ num, form, onChange }: Props) {
         {options.map((o, i) => (
           <div
             key={i}
+            onClick={() => onChange({ [key]: o } as Partial<FormData>)}
             className={`flex items-start gap-3 rounded-xl border px-4 py-3 cursor-pointer transition-colors ${
               form[key] === o
                 ? 'border-primary/50 bg-accent'
                 : 'border-input hover:bg-accent'
             }`}
           >
-            <RadioGroupItem value={o} id={`${key}-${i}`} className="mt-0.5" />
-            <label htmlFor={`${key}-${i}`} className="text-sm cursor-pointer flex-1 leading-relaxed">
-              {o}
-            </label>
+            <RadioGroupItem value={o} className="mt-0.5 pointer-events-none" />
+            <span className="text-sm flex-1 leading-relaxed">{o}</span>
           </div>
         ))}
       </RadioGroup>

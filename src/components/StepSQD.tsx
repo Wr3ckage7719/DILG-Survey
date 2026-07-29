@@ -26,16 +26,19 @@ export default function StepSQD({ index, form, onChange }: Props) {
         {SQD_OPTIONS.map((opt) => (
           <div
             key={opt}
+            onClick={() => {
+              const next = [...form.sqd];
+              next[index] = opt;
+              onChange({ sqd: next });
+            }}
             className={`flex items-center gap-3 rounded-xl border px-4 py-2.5 cursor-pointer transition-colors ${
               value === opt
                 ? 'border-primary/50 bg-accent'
                 : 'border-input hover:bg-accent'
             }`}
           >
-            <RadioGroupItem value={opt} id={`sqd${index}-${opt}`} />
-            <label htmlFor={`sqd${index}-${opt}`} className="text-sm cursor-pointer flex-1">
-              {opt}
-            </label>
+            <RadioGroupItem value={opt} className="pointer-events-none" />
+            <span className="text-sm flex-1">{opt}</span>
           </div>
         ))}
       </RadioGroup>

@@ -56,16 +56,15 @@ function RadioGroupBlock(props: {
         {props.options.map((o) => (
           <div
             key={o}
+            onClick={() => props.onChange(o)}
             className={`flex items-center gap-3 rounded-xl border px-4 py-2.5 cursor-pointer transition-colors ${
               props.value === o
                 ? 'border-primary/50 bg-accent'
                 : 'border-input hover:bg-accent'
             }`}
           >
-            <RadioGroupItem value={o} id={`${props.label}-${o}`} />
-            <label htmlFor={`${props.label}-${o}`} className="text-sm cursor-pointer flex-1">
-              {o}
-            </label>
+            <RadioGroupItem value={o} className="pointer-events-none" />
+            <span className="text-sm flex-1">{o}</span>
           </div>
         ))}
       </RadioGroup>
