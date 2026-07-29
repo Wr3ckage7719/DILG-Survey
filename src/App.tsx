@@ -158,19 +158,8 @@ export default function App() {
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
-      {/* Progress */}
-      <div className="fixed top-0 left-0 right-0 z-50 p-3 pb-0 bg-background/80 backdrop-blur-sm">
-        <div className="max-w-lg mx-auto space-y-1">
-          <div className="flex justify-between text-xs text-muted-foreground">
-            <span>{sectionIdx + 1} / {total}</span>
-            <span className="font-medium">{SECTION_LABELS[sectionId]}</span>
-          </div>
-          <Progress value={((sectionIdx + 1) / total) * 100} className="h-1.5 rounded-full" />
-        </div>
-      </div>
-
-      <div className="flex-1 flex items-start justify-center p-4 pt-28 pb-28">
-        <div className="max-w-lg w-full">
+      <div className="flex-1 flex items-start justify-center p-4 pt-4 pb-28">
+        <div className="max-w-lg w-full space-y-4">
           <AnimatePresence mode="wait">
             <motion.div
               key={sectionId}
@@ -178,7 +167,15 @@ export default function App() {
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -24 }}
               transition={{ duration: 0.2, ease: 'easeInOut' }}
+              className="space-y-3"
             >
+              <div className="space-y-1">
+                <div className="flex justify-between text-xs text-muted-foreground">
+                  <span>{sectionIdx + 1} / {total}</span>
+                  <span className="font-medium">{SECTION_LABELS[sectionId]}</span>
+                </div>
+                <Progress value={((sectionIdx + 1) / total) * 100} className="h-1.5 rounded-full" />
+              </div>
               {renderSection()}
             </motion.div>
           </AnimatePresence>
