@@ -1,4 +1,4 @@
-import { SECTIONS, SECTION_LABELS, type SectionId } from '../types';
+import { type SectionId } from '../types';
 
 interface Props {
   currentIndex: number;
@@ -6,59 +6,32 @@ interface Props {
   currentSectionId: SectionId;
 }
 
+const LABELS: Record<SectionId, string> = {
+  office: 'Detalye ng Tanggapan',
+  demographics: 'Demograpiko',
+  cc: 'Gabay ng Mamamayan',
+  sqd: 'Kalidad ng Serbisyo',
+  feedback: 'Puná at Impormasyon',
+};
+
 export default function StepIndicator({ currentIndex, total, currentSectionId }: Props) {
   return (
     <div className="mb-6">
-      {/* Dots + lines */}
-      <div className="flex items-center justify-between">
+      {/* Segmented line */}
+      <div className="flex h-1.5 rounded-full overflow-hidden bg-muted">
         {Array.from({ length: total }, (_, i) => (
-          <div key={i} className="flex items-center flex-1">
-            {/* Dot */}
-            <div
-              className={`rounded-full flex items-center justify-center transition-colors ${
-                i < currentIndex
-                  ? 'bg-primary w-3 h-3'
-                  : i === currentIndex
-                  ? 'bg-primary w-3.5 h-3.5 ring-2 ring-primary/30'
-                  : 'bg-muted-foreground/25 w-3 h-3'
-              }`}
-            >
-              {i < currentIndex && (
-                <svg className="w-2 h-2 text-primary-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                </svg>
-              )}
-            </div>
-
-            {/* Line to next dot */}
-            {i < total - 1 && (
-              <div
-                className={`flex-1 h-0.5 mx-1.5 ${
-                  i < currentIndex ? 'bg-primary' : 'bg-muted-foreground/25'
-                }`}
-              />
-            )}
-          </div>
-        ))}
-      </div>
-
-      {/* Numbers */}
-      <div className="flex justify-between mt-1.5 mb-3">
-        {SECTIONS.map((_, i) => (
-          <span
+          <div
             key={i}
-            className={`text-[10px] font-medium ${
-              i <= currentIndex ? 'text-primary' : 'text-muted-foreground/40'
-            }`}
-          >
-            {i + 1}
-          </span>
+            className={`flex-1 transition-colors ${
+              i <= currentIndex ? 'bg-primary' : 'bg-muted'
+            } ${i > 0 ? 'ml-0.5' : ''}`}
+          />
         ))}
       </div>
 
-      {/* Current section label */}
-      <p className="text-xs font-medium text-center text-muted-foreground">
-        {SECTION_LABELS[currentSectionId]}
+      {/* Step label */}
+      <p className="text-xs text-muted-foreground text-center mt-2">
+        {currentIndex + 1} / {total} &middot; {LABELS[currentSectionId]}
       </p>
     </div>
   );
