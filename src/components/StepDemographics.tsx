@@ -16,13 +16,13 @@ interface Props {
 
 export default function StepDemographics({ form, onChange }: Props) {
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <RadioGroupBlock label="Uri ng Kliyente" options={KLIYENTE} value={form.uriNgKliyente} onChange={(v) => onChange({ uriNgKliyente: v })} />
       <RadioGroupBlock label="Edad" options={EDAD} value={form.edad} onChange={(v) => onChange({ edad: v })} />
       <RadioGroupBlock label="Kasarian" options={KASARIAN} value={form.kasarian} onChange={(v) => onChange({ kasarian: v })} />
 
-      <div className="space-y-1.5">
-        <label className="text-sm font-medium text-foreground">Rehiyon ng tirahan</label>
+      <fieldset className="space-y-2">
+        <label className="text-sm font-semibold text-foreground">Rehiyon ng tirahan</label>
         <Select value={form.rehiyon} onValueChange={(v) => onChange({ rehiyon: v })}>
           <SelectTrigger className="w-full rounded-xl">
             <SelectValue placeholder="— Pumili —" />
@@ -33,7 +33,7 @@ export default function StepDemographics({ form, onChange }: Props) {
             ))}
           </SelectContent>
         </Select>
-      </div>
+      </fieldset>
     </div>
   );
 }
@@ -47,24 +47,24 @@ function RadioGroupBlock(props: {
   onChange: (v: string) => void;
 }) {
   return (
-    <div className="space-y-2">
-      <label className="text-sm font-medium text-foreground">{props.label}</label>
+    <fieldset className="space-y-3">
+      <label className="text-sm font-semibold text-foreground">{props.label}</label>
       <RadioGroup value={props.value} onValueChange={props.onChange}>
         {props.options.map((o) => (
           <div
             key={o}
             onClick={() => props.onChange(o)}
-            className={`flex items-center gap-3 rounded-xl border px-4 py-2.5 cursor-pointer transition-colors ${
+            className={`flex items-center gap-3.5 rounded-xl border px-4 py-3 cursor-pointer transition-colors ${
               props.value === o
-                ? 'border-primary/50 bg-accent'
+                ? 'border-primary/30 bg-primary/[0.04]'
                 : 'border-input hover:bg-accent'
             }`}
           >
             <RadioGroupItem value={o} className="pointer-events-none" />
-            <span className="text-sm flex-1">{o}</span>
+            <span className="text-sm flex-1 leading-relaxed">{o}</span>
           </div>
         ))}
       </RadioGroup>
-    </div>
+    </fieldset>
   );
 }

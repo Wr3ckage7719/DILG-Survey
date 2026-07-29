@@ -16,9 +16,9 @@ interface Props {
 
 export default function StepOffice({ form, onChange }: Props) {
   return (
-    <div className="space-y-5">
-      <div className="space-y-1.5">
-        <label className="text-sm font-medium text-foreground">Pangalan ng tanggapan / operating unit</label>
+    <div className="space-y-7">
+      <fieldset className="space-y-2">
+        <label className="text-sm font-semibold text-foreground">Pangalan ng tanggapan / operating unit</label>
         <Select
           value={form.pangalanNgTanggapan}
           onValueChange={(v) => onChange({ pangalanNgTanggapan: v })}
@@ -32,10 +32,10 @@ export default function StepOffice({ form, onChange }: Props) {
             ))}
           </SelectContent>
         </Select>
-      </div>
+      </fieldset>
 
-      <div className="space-y-1.5">
-        <label className="text-sm font-medium text-foreground">Serbisyong ibinigay</label>
+      <fieldset className="space-y-2">
+        <label className="text-sm font-semibold text-foreground">Serbisyong ibinigay</label>
         <Select
           value={form.serbisyongIbinigay}
           onValueChange={(v) => onChange({ serbisyongIbinigay: v })}
@@ -49,7 +49,7 @@ export default function StepOffice({ form, onChange }: Props) {
             ))}
           </SelectContent>
         </Select>
-      </div>
+      </fieldset>
 
       {form.serbisyongIbinigay === 'Other/s (Tukuyin ang iba pang serbisyo)' && (
         <div className="ml-2 pl-4 border-l-2 border-primary/30">

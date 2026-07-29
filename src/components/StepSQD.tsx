@@ -13,8 +13,8 @@ export default function StepSQD({ index, form, onChange }: Props) {
   const value = form.sqd[index];
 
   return (
-    <div className="space-y-2">
-      <p className="text-sm font-medium text-foreground">{label}</p>
+    <fieldset className="space-y-3">
+      <p className="text-sm font-semibold text-foreground leading-relaxed">{label}</p>
       <RadioGroup
         value={value}
         onValueChange={(v) => {
@@ -31,17 +31,17 @@ export default function StepSQD({ index, form, onChange }: Props) {
               next[index] = opt;
               onChange({ sqd: next });
             }}
-            className={`flex items-center gap-3 rounded-xl border px-4 py-2.5 cursor-pointer transition-colors ${
+            className={`flex items-center gap-3.5 rounded-xl border px-4 py-3 cursor-pointer transition-colors ${
               value === opt
-                ? 'border-primary/50 bg-accent'
+                ? 'border-primary/30 bg-primary/[0.04]'
                 : 'border-input hover:bg-accent'
             }`}
           >
             <RadioGroupItem value={opt} className="pointer-events-none" />
-            <span className="text-sm flex-1">{opt}</span>
+            <span className="text-sm flex-1 leading-relaxed">{opt}</span>
           </div>
         ))}
       </RadioGroup>
-    </div>
+    </fieldset>
   );
 }

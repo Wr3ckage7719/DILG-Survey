@@ -23,8 +23,8 @@ export default function StepCC({ num, form, onChange }: Props) {
   const title = CC_TITLES[num];
 
   return (
-    <div className="space-y-2">
-      <p className="text-sm font-medium text-foreground">{title}</p>
+    <fieldset className="space-y-3">
+      <p className="text-sm font-semibold text-foreground leading-relaxed">{title}</p>
       <RadioGroup
         value={form[key]}
         onValueChange={(v) => onChange({ [key]: v } as Partial<FormData>)}
@@ -33,9 +33,9 @@ export default function StepCC({ num, form, onChange }: Props) {
           <div
             key={i}
             onClick={() => onChange({ [key]: o } as Partial<FormData>)}
-            className={`flex items-start gap-3 rounded-xl border px-4 py-3 cursor-pointer transition-colors ${
+            className={`flex items-start gap-3.5 rounded-xl border px-4 py-3.5 cursor-pointer transition-colors ${
               form[key] === o
-                ? 'border-primary/50 bg-accent'
+                ? 'border-primary/30 bg-primary/[0.04]'
                 : 'border-input hover:bg-accent'
             }`}
           >
@@ -44,6 +44,6 @@ export default function StepCC({ num, form, onChange }: Props) {
           </div>
         ))}
       </RadioGroup>
-    </div>
+    </fieldset>
   );
 }
