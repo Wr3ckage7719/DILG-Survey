@@ -168,15 +168,16 @@ export default function App() {
               exit={{ opacity: 0, x: -24 }}
               transition={{ duration: 0.2, ease: 'easeInOut' }}
             >
+              <div className="mb-4 space-y-1.5">
+                <div className="flex justify-between text-xs text-muted-foreground">
+                  <span>{sectionIdx + 1} / {total}</span>
+                  <span className="font-medium">{SECTION_LABELS[sectionId]}</span>
+                </div>
+                <Progress value={((sectionIdx + 1) / total) * 100} className="h-2 rounded-full bg-muted" />
+              </div>
+
               <Card className="rounded-2xl shadow-sm border">
-                <CardContent className="p-6 pb-5 space-y-4">
-                  <div className="space-y-1.5">
-                    <div className="flex justify-between text-xs text-muted-foreground">
-                      <span>{sectionIdx + 1} / {total}</span>
-                      <span className="font-medium">{SECTION_LABELS[sectionId]}</span>
-                    </div>
-                    <Progress value={((sectionIdx + 1) / total) * 100} className="h-2 rounded-full bg-muted" />
-                  </div>
+                <CardContent className="p-6">
                   {renderSection()}
                 </CardContent>
               </Card>
