@@ -1,6 +1,5 @@
 import type { FormData } from '../types';
 import { KLIYENTE, EDAD, KASARIAN, REGIONS } from '../data/questions';
-import { Card, CardContent } from '@/components/ui/card';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import {
   Select,
@@ -17,27 +16,25 @@ interface Props {
 
 export default function StepDemographics({ form, onChange }: Props) {
   return (
-    <Card className="rounded-2xl shadow-sm border">
-      <CardContent className="p-6 space-y-6">
-        <RadioGroupBlock label="Uri ng Kliyente" options={KLIYENTE} value={form.uriNgKliyente} onChange={(v) => onChange({ uriNgKliyente: v })} />
-        <RadioGroupBlock label="Edad" options={EDAD} value={form.edad} onChange={(v) => onChange({ edad: v })} />
-        <RadioGroupBlock label="Kasarian" options={KASARIAN} value={form.kasarian} onChange={(v) => onChange({ kasarian: v })} />
+    <div className="space-y-6">
+      <RadioGroupBlock label="Uri ng Kliyente" options={KLIYENTE} value={form.uriNgKliyente} onChange={(v) => onChange({ uriNgKliyente: v })} />
+      <RadioGroupBlock label="Edad" options={EDAD} value={form.edad} onChange={(v) => onChange({ edad: v })} />
+      <RadioGroupBlock label="Kasarian" options={KASARIAN} value={form.kasarian} onChange={(v) => onChange({ kasarian: v })} />
 
-        <div className="space-y-1.5">
-          <label className="text-sm font-medium text-foreground">Rehiyon ng tirahan</label>
-          <Select value={form.rehiyon} onValueChange={(v) => onChange({ rehiyon: v })}>
-            <SelectTrigger className="w-full rounded-xl">
-              <SelectValue placeholder="— Pumili —" />
-            </SelectTrigger>
-            <SelectContent>
-              {REGIONS.map((o) => (
-                <SelectItem key={o} value={o}>{o}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </CardContent>
-    </Card>
+      <div className="space-y-1.5">
+        <label className="text-sm font-medium text-foreground">Rehiyon ng tirahan</label>
+        <Select value={form.rehiyon} onValueChange={(v) => onChange({ rehiyon: v })}>
+          <SelectTrigger className="w-full rounded-xl">
+            <SelectValue placeholder="— Pumili —" />
+          </SelectTrigger>
+          <SelectContent>
+            {REGIONS.map((o) => (
+              <SelectItem key={o} value={o}>{o}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+    </div>
   );
 }
 

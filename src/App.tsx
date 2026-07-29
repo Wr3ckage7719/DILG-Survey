@@ -159,7 +159,7 @@ export default function App() {
   return (
     <div className="min-h-screen flex flex-col bg-background">
       <div className="flex-1 flex items-start justify-center p-4 pt-4 pb-28">
-        <div className="max-w-lg w-full space-y-4">
+        <div className="max-w-lg w-full">
           <AnimatePresence mode="wait">
             <motion.div
               key={sectionId}
@@ -167,16 +167,19 @@ export default function App() {
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -24 }}
               transition={{ duration: 0.2, ease: 'easeInOut' }}
-              className="space-y-3"
             >
-              <div className="space-y-1">
-                <div className="flex justify-between text-xs text-muted-foreground">
-                  <span>{sectionIdx + 1} / {total}</span>
-                  <span className="font-medium">{SECTION_LABELS[sectionId]}</span>
-                </div>
-                <Progress value={((sectionIdx + 1) / total) * 100} className="h-2 rounded-full bg-muted" />
-              </div>
-              {renderSection()}
+              <Card className="rounded-2xl shadow-sm border">
+                <CardContent className="p-6 pb-5 space-y-4">
+                  <div className="space-y-1.5">
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                      <span>{sectionIdx + 1} / {total}</span>
+                      <span className="font-medium">{SECTION_LABELS[sectionId]}</span>
+                    </div>
+                    <Progress value={((sectionIdx + 1) / total) * 100} className="h-2 rounded-full bg-muted" />
+                  </div>
+                  {renderSection()}
+                </CardContent>
+              </Card>
             </motion.div>
           </AnimatePresence>
         </div>
