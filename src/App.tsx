@@ -169,7 +169,7 @@ export default function App() {
         </div>
       </div>
 
-      <div className="flex-1 flex items-start justify-center p-4 pt-20 pb-28">
+      <div className="flex-1 flex items-start justify-center p-4 pt-28 pb-28">
         <div className="max-w-lg w-full">
           <AnimatePresence mode="wait">
             <motion.div
