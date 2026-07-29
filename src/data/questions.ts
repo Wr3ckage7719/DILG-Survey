@@ -1,4 +1,4 @@
-import { type StepId } from './types';
+import { type StepId } from '../types';
 
 export const DISCLAIMER = {
   title: 'Minamahal naming kliyente,',
