@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { toast } from 'sonner';
 
-import { type FormData, SECTIONS, INITIAL_FORM } from './types';
+import { type FormData, SECTIONS, SECTION_LABELS, INITIAL_FORM } from './types';
 import { DISCLAIMER } from './data/questions';
 import { submitSurvey } from './api/submit';
 
@@ -168,10 +168,13 @@ export default function App() {
               exit={{ opacity: 0, x: -24 }}
               transition={{ duration: 0.2, ease: 'easeInOut' }}
             >
-              <StepIndicator currentIndex={sectionIdx} total={total} currentSectionId={sectionId} />
+              <StepIndicator currentIndex={sectionIdx} total={total} />
 
               <Card className="rounded-2xl shadow-sm border">
                 <CardContent className="p-6">
+                  <h2 className="text-sm font-semibold text-foreground mb-4">
+                    {SECTION_LABELS[sectionId]}
+                  </h2>
                   {renderSection()}
                 </CardContent>
               </Card>
