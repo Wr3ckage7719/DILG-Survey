@@ -127,7 +127,7 @@ const SelectItem = React.forwardRef<
       </SelectPrimitive.ItemIndicator>
     </span>
 
-    <span className="whitespace-normal text-left flex-1">{children}</span>
+    <SelectPrimitive.ItemText className="!whitespace-normal">{children}</SelectPrimitive.ItemText>
   </SelectPrimitive.Item>
 ))
 SelectItem.displayName = SelectPrimitive.Item.displayName
