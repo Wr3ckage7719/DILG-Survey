@@ -31,16 +31,16 @@ export default function StepIndicator({ currentIndex, total }: Props) {
                 <div className="relative flex items-center justify-center">
                   <div
                     className={cn(
-                      'w-8 h-8 rounded-full flex items-center justify-center transition-colors duration-300',
+                      'size-9 md:w-8 md:h-8 rounded-full flex items-center justify-center transition-colors duration-300',
                       isCompleted && 'bg-primary text-primary-foreground',
                       isActive && 'bg-gold text-gold-foreground',
                       isPending && 'border-2 border-muted-foreground/25 text-muted-foreground/40 bg-transparent',
                     )}
                   >
                     {isCompleted ? (
-                      <Check className="w-3.5 h-3.5" strokeWidth={2.5} />
+                      <Check className="size-4 md:w-3.5 md:h-3.5" strokeWidth={2.5} />
                     ) : (
-                      <Icon className="w-3.5 h-3.5" />
+                      <Icon className="size-4 md:w-3.5 md:h-3.5" />
                     )}
                   </div>
 
@@ -55,7 +55,7 @@ export default function StepIndicator({ currentIndex, total }: Props) {
 
                 <span
                   className={cn(
-                    'text-[10px] font-semibold tracking-tight uppercase transition-colors duration-300 text-center leading-tight',
+                    'text-[11px] md:text-[10px] font-semibold tracking-tight uppercase transition-colors duration-300 text-center leading-tight',
                     isActive && 'text-gold',
                     isCompleted && 'text-primary/70',
                     isPending && 'text-muted-foreground/40',

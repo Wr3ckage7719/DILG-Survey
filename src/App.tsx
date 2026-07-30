@@ -213,7 +213,7 @@ export default function App() {
       <>
         <div className="min-h-screen flex items-center justify-center p-4 bg-survey">
         <Card className="max-w-lg w-full rounded-2xl shadow-sm border border-t-2 border-t-primary">
-          <CardContent className="p-8 text-center space-y-5">
+          <CardContent className="p-6 md:p-8 text-center space-y-5">
             <img
               src={LogoSrc}
               alt="DILG Logo"
@@ -355,7 +355,7 @@ export default function App() {
               <StepIndicator currentIndex={sectionIdx} total={total} />
 
               <Card className="rounded-2xl shadow-sm border border-t-2 border-t-primary">
-                <CardContent className="p-6">
+                <CardContent className="p-5 md:p-6">
                   <h2 className="text-lg font-bold text-primary mb-6 pb-3 border-b border-border/50">
                     {SECTION_LABELS[sectionId]}
                   </h2>
