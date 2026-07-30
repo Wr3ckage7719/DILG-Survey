@@ -6,6 +6,35 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="Department of the Interior and Local Government — Client Satisfaction Survey (On-Site). FM-SP-DILG-07-07B. Republic of the Philippines." />
     <title>DILG Client Satisfaction Survey | Republic of the Philippines</title>
+
+    <!-- Security: Content Security Policy -->
+    <meta http-equiv="Content-Security-Policy" content="
+      default-src 'self';
+      script-src 'self' 'unsafe-inline' 'unsafe-eval';
+      style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+      font-src 'self' https://fonts.gstatic.com data:;
+      img-src 'self' data: blob:;
+      connect-src 'self';
+      frame-src 'none';
+      object-src 'none';
+      base-uri 'self';
+      form-action 'self';
+    ">
+
+    <!-- Security: prevent MIME-type sniffing -->
+    <meta http-equiv="X-Content-Type-Options" content="nosniff">
+
+    <!-- Security: prevent clickjacking -->
+    <meta http-equiv="X-Frame-Options" content="DENY">
+
+    <!-- Security: referrer policy -->
+    <meta name="referrer" content="strict-origin-when-cross-origin">
+
+    <!-- Performance: preconnect to Google Fonts origin -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+
+
   </head>
   <body>
     <div id="root"></div>

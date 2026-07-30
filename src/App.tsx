@@ -1,11 +1,17 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { toast } from 'sonner';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 import { type FormData, SECTIONS, SECTION_LABELS, INITIAL_FORM } from './types';
 import { DISCLAIMER } from './data/questions';
-import { submitSurvey } from './api/submit';
+import {
+  submitSurvey,
+  generateRefNumber,
+  isHoneypotFilled,
+  validateEmail,
+  validatePhone,
+} from './api/submit';
 import { vibrateError, playErrorSound, scrollToError } from './lib/feedback';
 
 import { Button } from '@/components/ui/button';
@@ -54,6 +60,16 @@ function validate(sectionId: string, form: FormData): { message: string; key: st
   return null;
 }
 
+function validateFeedbackSection(form: FormData): string | null {
+  if (form.emailAddress && !validateEmail(form.emailAddress)) {
+    return 'Hindi valid ang email address.';
+  }
+  if (form.contactNumber && !validatePhone(form.contactNumber)) {
+    return 'Hindi valid ang contact number.';
+  }
+  return null;
+}
+
 export default function App() {
   const [sectionIdx, setSectionIdx] = useState(0);
   const [form, setForm] = useState<FormData>(INITIAL_FORM);
@@ -61,6 +77,8 @@ export default function App() {
   const [submitting, setSubmitting] = useState(false);
   const [showDisclaimer, setShowDisclaimer] = useState(true);
   const [errors, setErrors] = useState<Record<string, boolean>>({});
+  const [refNumber, setRefNumber] = useState<string>('');
+  const honeypotRef = useRef<HTMLInputElement>(null);
   const prefersReduced = useReducedMotion();
 
   const update = useCallback((patch: Partial<FormData>) => {
@@ -101,6 +119,7 @@ export default function App() {
   };
 
   const handleSubmit = async () => {
+    // Validate required fields
     const err = validate(sectionId, form);
     if (err) {
       setErrors({ [err.key]: true });
@@ -112,15 +131,38 @@ export default function App() {
       });
       return;
     }
+
+    // Validate email/phone format
+    const feedbackErr = validateFeedbackSection(form);
+    if (feedbackErr) {
+      toast.error(feedbackErr, {
+        className: '!bg-[#BF0D3E] !text-white !border-[#BF0D3E]',
+      });
+      return;
+    }
+
+    // Honeypot check — reject silently if bot-filled
+    if (honeypotRef.current && isHoneypotFilled(honeypotRef.current.value)) {
+      toast.success('Naipadala ang inyong sarbey!');
+      setSubmitted(true);
+      return;
+    }
+
     setErrors({});
     setSubmitting(true);
-    const ok = await submitSurvey(form);
+
+    // Generate reference number for audit trail
+    const ref = generateRefNumber();
+    setRefNumber(ref);
+
+    const result = await submitSurvey(form, ref);
     setSubmitting(false);
-    if (ok) {
+
+    if (result.ok) {
       setSubmitted(true);
       toast.success('Naipadala ang inyong sarbey!');
     } else {
-      toast.error('Hindi nakapag-submit. Pakisubukan muli.');
+      toast.error(result.error || 'Hindi nakapag-submit. Pakisubukan muli.');
     }
   };
 
@@ -130,7 +172,13 @@ export default function App() {
       case 'demographics': return <StepDemographics form={form} onChange={update} errors={errors} />;
       case 'cc': return <SectionCC form={form} onChange={update} errors={errors} />;
       case 'sqd': return <SectionSQD form={form} onChange={update} />;
-      case 'feedback': return <SectionFeedback form={form} onChange={update} />;
+      case 'feedback': return (
+        <SectionFeedback
+          form={form}
+          onChange={update}
+          honeypotRef={honeypotRef}
+        />
+      );
     }
   };
 
@@ -190,6 +238,19 @@ export default function App() {
             <p className="text-muted-foreground text-sm">
               Ang inyong tugon ay makatutulong sa pagpapabuti ng serbisyo publiko.
             </p>
+            {refNumber && (
+              <div className="mt-4 rounded-xl bg-muted/50 border border-border px-4 py-3 text-center">
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">
+                  Reference Number
+                </p>
+                <p className="text-sm font-mono font-bold text-primary select-all">
+                  {refNumber}
+                </p>
+                <p className="text-[10px] text-muted-foreground mt-1">
+                  Pakitago ang numerong ito para sa inyong talaan.
+                </p>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
