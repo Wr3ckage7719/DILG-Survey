@@ -84,6 +84,11 @@
     font-family: 'Poppins', system-ui, -apple-system, sans-serif;
     scroll-behavior: smooth;
   }
+
+  /* Override Radix Select truncation — full text wraps instead of ellipsis */
+  [data-radix-select-item] [data-radix-select-item-text] {
+    white-space: normal !important;
+  }
 }
 
 /* navy-tinted radial gradient background */
