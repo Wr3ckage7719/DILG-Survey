@@ -12,7 +12,7 @@ export default function SectionFeedback({ form, onChange }: Props) {
   return (
     <div className="space-y-7">
       <div className="space-y-3">
-        <h3 className="text-base font-bold text-primary/90">Mga mungkahi</h3>
+        <h3 className="text-base font-bold text-primary">Mga mungkahi</h3>
         <p className="text-sm text-muted-foreground">
           Paano pa mapapabuti ang aming serbisyo?
         </p>
@@ -28,7 +28,7 @@ export default function SectionFeedback({ form, onChange }: Props) {
 
       <div className="space-y-3">
         <div className="space-y-1">
-          <h3 className="text-base font-bold text-primary/90">Impormasyon ng Kliyente</h3>
+          <h3 className="text-base font-bold text-primary">Impormasyon ng Kliyente</h3>
           <p className="text-xs text-muted-foreground">Hindi required. Punan lamang kung nais mong makontak ka namin.</p>
         </div>
 

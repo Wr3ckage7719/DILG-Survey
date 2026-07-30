@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { toast } from 'sonner';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 import { type FormData, SECTIONS, SECTION_LABELS, INITIAL_FORM } from './types';
 import { DISCLAIMER } from './data/questions';
@@ -18,6 +19,8 @@ import SectionCC from './components/SectionCC';
 import SectionSQD from './components/SectionSQD';
 import SectionFeedback from './components/SectionFeedback';
 import StepIndicator from './components/StepIndicator';
+
+const spring = { type: 'spring' as const, stiffness: 300, damping: 30 };
 
 const REQUIRED_FIELDS: Record<string, (keyof FormData)[]> = {
   office: ['pangalanNgTanggapan', 'serbisyongIbinigay'],
@@ -111,17 +114,17 @@ export default function App() {
   if (showDisclaimer) {
     return (
       <>
-        <div className="min-h-screen flex items-center justify-center p-4 bg-background">
-        <Card className="max-w-lg w-full rounded-2xl shadow-sm border">
+        <div className="min-h-screen flex items-center justify-center p-4 bg-survey">
+        <Card className="max-w-lg w-full rounded-2xl shadow-sm border border-t-2 border-t-primary">
           <CardContent className="p-8 text-center space-y-5">
             <img
               src={LogoSrc}
               alt="DILG Logo"
-              className="h-16 mx-auto object-contain"
+              className="h-20 mx-auto object-contain"
             />
             <div className="space-y-1">
               <p className="text-xs text-muted-foreground">FM-SP-DILG-07-07B</p>
-              <h2 className="text-base font-semibold text-primary">
+              <h2 className="text-base font-bold text-primary">
                 CLIENT SATISFACTION SURVEY (ON-SITE)
               </h2>
             </div>
@@ -134,6 +137,7 @@ export default function App() {
             <Button
               onClick={() => setShowDisclaimer(false)}
               size="lg"
+              variant="gold"
               className="w-full rounded-xl"
             >
               Simulan ang Sarbey
@@ -148,10 +152,10 @@ export default function App() {
   if (submitted) {
     return (
       <>
-        <div className="min-h-screen flex items-center justify-center p-4 bg-background">
-        <Card className="max-w-lg w-full rounded-2xl shadow-sm border">
+        <div className="min-h-screen flex items-center justify-center p-4 bg-survey">
+        <Card className="max-w-lg w-full rounded-2xl shadow-sm border border-t-2 border-t-gold">
           <CardContent className="p-8 text-center space-y-3">
-            <div className="mx-auto w-40 h-40">
+            <div className="mx-auto w-40 h-40 rounded-full ring-4 ring-gold/30 p-2">
               <DotLottiePlayer
                 src="/Trophy.lottie"
                 autoplay
@@ -159,7 +163,7 @@ export default function App() {
                 style={{ width: '100%', height: '100%' }}
               />
             </div>
-            <h2 className="text-xl font-bold text-foreground">Maraming Salamat!</h2>
+            <h2 className="text-xl font-bold text-primary">Maraming Salamat!</h2>
             <p className="text-muted-foreground text-sm">
               Ang inyong tugon ay makatutulong sa pagpapabuti ng serbisyo publiko.
             </p>
@@ -172,22 +176,44 @@ export default function App() {
 
   return (
     <>
-      <div className="min-h-screen flex flex-col bg-background">
+      <div className="min-h-screen flex flex-col bg-survey">
+
+      {/* Progress bar */}
+      <motion.div
+        className="fixed top-0 left-0 h-1 z-50 bg-gradient-to-r from-primary via-primary to-gold"
+        animate={{ width: `${((sectionIdx + 1) / total) * 100}%` }}
+        transition={spring}
+      />
+
       <div className="flex-1 flex items-start justify-center p-4 pt-4 pb-28">
         <div className="max-w-lg w-full">
+
+          {/* DILG header */}
+          <div className="flex items-center justify-center gap-2 mb-4">
+            <img
+              src={LogoSrc}
+              alt="DILG Logo"
+              className="h-7 object-contain"
+            />
+            <div className="text-[10px] text-muted-foreground tracking-wide uppercase leading-tight">
+              <span className="font-semibold text-primary/80">DILG</span>{' '}
+              Client Satisfaction Survey
+            </div>
+          </div>
+
           <AnimatePresence mode="wait">
             <motion.div
               key={sectionId}
               initial={false}
               animate={{ opacity: 1, x: 0 }}
               exit={prefersReduced ? undefined : { opacity: 0, x: -24 }}
-              transition={{ duration: 0.2, ease: 'easeInOut' }}
+              transition={spring}
             >
               <StepIndicator currentIndex={sectionIdx} total={total} />
 
-              <Card className="rounded-2xl shadow-sm border">
-                <CardContent className="p-8">
-                  <h2 className="text-lg font-bold text-primary/90 mb-6 pb-3 border-b border-border/50">
+              <Card className="rounded-2xl shadow-sm border border-t-2 border-t-primary">
+                <CardContent className="p-6">
+                  <h2 className="text-lg font-bold text-primary mb-6 pb-3 border-b border-border/50">
                     {SECTION_LABELS[sectionId]}
                   </h2>
                   {renderSection()}
@@ -203,20 +229,23 @@ export default function App() {
         <div className="max-w-lg mx-auto p-4 flex gap-3 items-center">
           {sectionIdx > 0 && (
             <Button variant="outline" onClick={prev} className="flex-1 rounded-xl">
-              ← Bumalik
+              <ChevronLeft className="w-4 h-4" />
+              Bumalik
             </Button>
           )}
           {!isLast ? (
             <Button onClick={next} className="flex-1 rounded-xl">
-              Susunod →
+              Susunod
+              <ChevronRight className="w-4 h-4" />
             </Button>
           ) : (
             <Button
+              variant="gold"
               onClick={handleSubmit}
               disabled={submitting}
               className="flex-1 rounded-xl"
             >
-              {submitting ? 'Ipinapadala…' : 'Isumite ang Sarbey'}
+              {submitting ? 'Ipinapadala\u2026' : 'Isumite ang Sarbey'}
             </Button>
           )}
         </div>
