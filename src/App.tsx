@@ -17,6 +17,7 @@ import { vibrateError, playErrorSound, scrollToError } from './lib/feedback';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Toaster } from '@/components/ui/sonner';
+import { cn } from '@/lib/utils';
 
 import { DotLottiePlayer } from '@dotlottie/react-player';
 import LogoSrc from './Logo.png';
@@ -78,6 +79,7 @@ export default function App() {
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [showDisclaimer, setShowDisclaimer] = useState(true);
+  const [consentChecked, setConsentChecked] = useState(false);
   const [errors, setErrors] = useState<Record<string, boolean>>({});
   const [sectionError, setSectionError] = useState<string>('');
   const [showConfirm, setShowConfirm] = useState(false);
@@ -224,19 +226,52 @@ export default function App() {
               </h2>
             </div>
             <div className="text-left space-y-2">
-              <h3 className="font-semibold text-sm text-foreground">{DISCLAIMER.title}</h3>
+              <h3 className="font-semibold text-sm text-foreground">Data Privacy Consent</h3>
+              <p className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+                <span className="size-1.5 rounded-full bg-primary" />
+                {DISCLAIMER.title}
+              </p>
               <p className="text-sm text-muted-foreground whitespace-pre-line leading-relaxed">
                 {DISCLAIMER.text}
               </p>
             </div>
+
+            {/* Consent checkbox */}
+            <label
+              className={cn(
+                'flex items-start gap-3 rounded-xl border px-4 py-3.5 cursor-pointer transition-colors text-left',
+                consentChecked
+                  ? 'border-primary/30 bg-primary/[0.04]'
+                  : 'border-input hover:bg-accent/50',
+              )}
+            >
+              <input
+                type="checkbox"
+                checked={consentChecked}
+                onChange={(e) => setConsentChecked(e.target.checked)}
+                className="mt-0.5 size-4 shrink-0 accent-primary rounded"
+              />
+              <span className="text-xs text-muted-foreground leading-relaxed select-none">
+                Pumapayag ako na kolektahin, gamitin, at itago ng DILG ang aking personal
+                na datos alinsunod sa nakasaad sa itaas at sa ilalim ng Data Privacy Act
+                (RA 10173).
+              </span>
+            </label>
+
             <Button
               onClick={() => setShowDisclaimer(false)}
               size="lg"
               variant="gold"
+              disabled={!consentChecked}
               className="w-full rounded-xl"
             >
-              Simulan ang Sarbey
+              Pumapayag at Simulan ang Sarbey
             </Button>
+            {!consentChecked && (
+              <p className="text-[10px] text-muted-foreground/50">
+                Kailangan munang magbigay ng pahintulot bago magpatuloy.
+              </p>
+            )}
           </CardContent>
         </Card>
       </div>
