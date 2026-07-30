@@ -1,13 +1,17 @@
 import type { FormData } from '../types';
-import { KLIYENTE, EDAD, KASARIAN, REGIONS } from '../data/questions';
+import { KLIYENTE, EDAD, KASARIAN, REGION_GROUPS } from '../data/questions';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
+  SelectSeparator,
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Fragment } from 'react';
 
 interface Props {
   form: FormData;
@@ -27,9 +31,17 @@ export default function StepDemographics({ form, onChange }: Props) {
           <SelectTrigger className="w-full rounded-xl">
             <SelectValue placeholder="— Pumili —" />
           </SelectTrigger>
-          <SelectContent>
-            {REGIONS.map((o) => (
-              <SelectItem key={o} value={o}>{o}</SelectItem>
+          <SelectContent side="top">
+            {REGION_GROUPS.map((group, gi) => (
+              <Fragment key={gi}>
+                {gi > 0 && <SelectSeparator />}
+                <SelectGroup>
+                  <SelectLabel>{group.label}</SelectLabel>
+                  {group.items.map((o) => (
+                    <SelectItem key={o} value={o}>{o}</SelectItem>
+                  ))}
+                </SelectGroup>
+              </Fragment>
             ))}
           </SelectContent>
         </Select>

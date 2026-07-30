@@ -1,13 +1,17 @@
 import type { FormData } from '../types';
-import { OFFICES, SERVICES } from '../data/questions';
+import { OFFICES, SERVICE_GROUPS } from '../data/questions';
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
+  SelectSeparator,
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
+import { Fragment } from 'react';
 
 interface Props {
   form: FormData;
@@ -44,8 +48,16 @@ export default function StepOffice({ form, onChange }: Props) {
             <SelectValue placeholder="— Pumili —" />
           </SelectTrigger>
           <SelectContent>
-            {SERVICES.map((o) => (
-              <SelectItem key={o} value={o}>{o}</SelectItem>
+            {SERVICE_GROUPS.map((group, gi) => (
+              <Fragment key={gi}>
+                {gi > 0 && <SelectSeparator />}
+                <SelectGroup>
+                  <SelectLabel>{group.label}</SelectLabel>
+                  {group.items.map((o) => (
+                    <SelectItem key={o} value={o}>{o}</SelectItem>
+                  ))}
+                </SelectGroup>
+              </Fragment>
             ))}
           </SelectContent>
         </Select>

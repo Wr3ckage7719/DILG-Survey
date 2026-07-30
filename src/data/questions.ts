@@ -35,6 +35,49 @@ export const SERVICES = [
   'Other/s (Tukuyin ang iba pang serbisyo)',
 ];
 
+export const SERVICE_GROUPS = [
+  {
+    label: 'Dokumento',
+    items: [
+      'Pagtanggap ng mga papasok na komunikasyon at dokumento (Receiving of Letters, Communications, and Other Official Documents)',
+      'Pagtanggap at pagruruta ng mga sulat, memorandum, at iba pang opisyal na dokumento',
+    ],
+  },
+  {
+    label: 'Serbisyong Teknikal',
+    items: [
+      'Pagbibigay ng technical assistance at capacity development',
+      'Pagsasagawa ng monitoring at evaluation ng mga programa at proyekto',
+      'Pagbibigay ng orientation, seminar, at training',
+    ],
+  },
+  {
+    label: 'Serbisyong Pampubliko',
+    items: [
+      'Pagbibigay ng impormasyon at public assistance',
+      'Pagtanggap at pagproseso ng mga kahilingan at dokumento',
+      'Pagpapalabas ng mga sertipikasyon, endorsements, at rekomendasyon',
+    ],
+  },
+  {
+    label: 'Legal, Reklamo, at Koordinasyon',
+    items: [
+      'Pagproseso ng mga reklamo at feedback ng mamamayan',
+      'Pagbibigay ng legal at policy advisory services',
+      'Pangangasiwa at koordinasyon ng mga programa ng pamahalaan',
+      'Pagsasagawa ng inspeksyon at validation',
+    ],
+  },
+  {
+    label: 'Iba pang Serbisyo',
+    items: [
+      'Pangongolekta at pamamahala ng datos at ulat',
+      'Pagbibigay ng online services at digital platforms',
+      'Other/s (Tukuyin ang iba pang serbisyo)',
+    ],
+  },
+];
+
 export const KLIYENTE = [
   'Mamamayan',
   'Negosyo',
@@ -76,6 +119,41 @@ export const REGIONS = [
   'Region XII – SOCCSKSARGEN',
   'Region XIII – Caraga',
   'Bangsamoro Autonomous Region in Muslim Mindanao (BARMM)',
+];
+
+export const REGION_GROUPS = [
+  {
+    label: 'Luzon',
+    items: [
+      'National Capital Region (NCR) – Metro Manila',
+      'Cordillera Administrative Region (CAR)',
+      'Region I – Ilocos Region',
+      'Region II – Cagayan Valley',
+      'Region III – Central Luzon',
+      'Region IV-A – CALABARZON',
+      'Region IV-B – MIMAROPA',
+      'Region V – Bicol Region',
+    ],
+  },
+  {
+    label: 'Visayas',
+    items: [
+      'Region VI – Western Visayas',
+      'Region VII – Central Visayas',
+      'Region VIII – Eastern Visayas',
+    ],
+  },
+  {
+    label: 'Mindanao',
+    items: [
+      'Region IX – Zamboanga Peninsula',
+      'Region X – Northern Mindanao',
+      'Region XI – Davao Region',
+      'Region XII – SOCCSKSARGEN',
+      'Region XIII – Caraga',
+      'Bangsamoro Autonomous Region in Muslim Mindanao (BARMM)',
+    ],
+  },
 ];
 
 export const CC1_OPTIONS = [
