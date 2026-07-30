@@ -85,6 +85,9 @@ export default function App() {
       vibrateError();
       playErrorSound();
       scrollToError(err.key);
+      toast.error(err.message, {
+        className: '!bg-[#BF0D3E] !text-white !border-[#BF0D3E]',
+      });
       return;
     }
     setErrors({});
@@ -104,6 +107,9 @@ export default function App() {
       vibrateError();
       playErrorSound();
       scrollToError(err.key);
+      toast.error(err.message, {
+        className: '!bg-[#BF0D3E] !text-white !border-[#BF0D3E]',
+      });
       return;
     }
     setErrors({});
