@@ -6,6 +6,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { type FormData, SECTIONS, SECTION_LABELS, INITIAL_FORM } from './types';
 import { DISCLAIMER } from './data/questions';
 import { submitSurvey } from './api/submit';
+import { vibrateError, playErrorSound, scrollToError } from './lib/feedback';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -30,7 +31,7 @@ const REQUIRED_FIELDS: Record<string, (keyof FormData)[]> = {
   feedback: [],
 };
 
-function validate(sectionId: string, form: FormData): string | null {
+function validate(sectionId: string, form: FormData): { message: string; key: string } | null {
   const fields = REQUIRED_FIELDS[sectionId];
   if (!fields) return null;
   for (const key of fields) {
@@ -47,7 +48,7 @@ function validate(sectionId: string, form: FormData): string | null {
         cc2: 'CC2',
         cc3: 'CC3',
       };
-      return `Punan ang ${labels[key] || key}`;
+      return { message: `Punan ang ${labels[key] || key}`, key };
     }
   }
   return null;
@@ -59,10 +60,18 @@ export default function App() {
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [showDisclaimer, setShowDisclaimer] = useState(true);
+  const [errors, setErrors] = useState<Record<string, boolean>>({});
   const prefersReduced = useReducedMotion();
 
   const update = useCallback((patch: Partial<FormData>) => {
     setForm((f) => ({ ...f, ...patch }));
+    setErrors((prev) => {
+      const patchKey = Object.keys(patch)[0];
+      if (!patchKey || !prev[patchKey]) return prev;
+      const next = { ...prev };
+      delete next[patchKey];
+      return next;
+    });
   }, []);
 
   const sectionId = SECTIONS[sectionIdx];
@@ -72,9 +81,13 @@ export default function App() {
   const next = () => {
     const err = validate(sectionId, form);
     if (err) {
-      toast.error(err);
+      setErrors({ [err.key]: true });
+      vibrateError();
+      playErrorSound();
+      scrollToError(err.key);
       return;
     }
+    setErrors({});
     setSectionIdx((s) => s + 1);
     window.scrollTo(0, 0);
   };
@@ -87,9 +100,13 @@ export default function App() {
   const handleSubmit = async () => {
     const err = validate(sectionId, form);
     if (err) {
-      toast.error(err);
+      setErrors({ [err.key]: true });
+      vibrateError();
+      playErrorSound();
+      scrollToError(err.key);
       return;
     }
+    setErrors({});
     setSubmitting(true);
     const ok = await submitSurvey(form);
     setSubmitting(false);
@@ -103,9 +120,9 @@ export default function App() {
 
   const renderSection = () => {
     switch (sectionId) {
-      case 'office': return <StepOffice form={form} onChange={update} />;
-      case 'demographics': return <StepDemographics form={form} onChange={update} />;
-      case 'cc': return <SectionCC form={form} onChange={update} />;
+      case 'office': return <StepOffice form={form} onChange={update} errors={errors} />;
+      case 'demographics': return <StepDemographics form={form} onChange={update} errors={errors} />;
+      case 'cc': return <SectionCC form={form} onChange={update} errors={errors} />;
       case 'sqd': return <SectionSQD form={form} onChange={update} />;
       case 'feedback': return <SectionFeedback form={form} onChange={update} />;
     }

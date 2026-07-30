@@ -1,3 +1,4 @@
+import { cn } from '@/lib/utils';
 import type { FormData } from '../types';
 import { CC1_OPTIONS, CC2_OPTIONS, CC3_OPTIONS } from '../data/questions';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
@@ -6,6 +7,7 @@ interface Props {
   num: 1 | 2 | 3;
   form: FormData;
   onChange: (patch: Partial<FormData>) => void;
+  errors?: Record<string, boolean>;
 }
 
 const CC_TITLES: Record<number, string> = {
@@ -17,14 +19,25 @@ const CC_TITLES: Record<number, string> = {
 const CC_OPTIONS: Record<number, string[]> = { 1: CC1_OPTIONS, 2: CC2_OPTIONS, 3: CC3_OPTIONS };
 const CC_KEYS = ['cc1', 'cc2', 'cc3'] as const;
 
-export default function StepCC({ num, form, onChange }: Props) {
+export default function StepCC({ num, form, onChange, errors }: Props) {
   const key = CC_KEYS[num - 1];
   const options = CC_OPTIONS[num];
   const title = CC_TITLES[num];
+  const hasError = errors?.[key];
 
   return (
-    <fieldset className="space-y-3">
-      <p className="text-sm font-semibold text-foreground leading-relaxed">{title}</p>
+    <fieldset
+      className={cn('space-y-3', hasError && 'rounded-xl ring-2 ring-destructive p-3 -mx-2')}
+      data-error-field={key}
+    >
+      <p
+        className={cn(
+          'text-sm font-semibold leading-relaxed',
+          hasError ? 'text-destructive' : 'text-foreground',
+        )}
+      >
+        {title}
+      </p>
       <RadioGroup
         value={form[key]}
         onValueChange={(v) => onChange({ [key]: v } as Partial<FormData>)}

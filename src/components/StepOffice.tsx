@@ -1,4 +1,6 @@
 import type { FormData } from '../types';
+import { Fragment } from 'react';
+import type { FormData } from '../types';
 import { OFFICES, SERVICE_GROUPS } from '../data/questions';
 import {
   Select,
@@ -11,23 +13,29 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
-import { Fragment } from 'react';
+import { cn } from '@/lib/utils';
 
 interface Props {
   form: FormData;
   onChange: (patch: Partial<FormData>) => void;
+  errors: Record<string, boolean>;
 }
 
 export default function StepOffice({ form, onChange }: Props) {
   return (
     <div className="space-y-7">
-      <fieldset className="space-y-2">
+      <fieldset className="space-y-2" data-error-field="pangalanNgTanggapan">
         <label className="text-sm font-semibold text-foreground">Pangalan ng tanggapan / operating unit</label>
         <Select
           value={form.pangalanNgTanggapan}
           onValueChange={(v) => onChange({ pangalanNgTanggapan: v })}
         >
-          <SelectTrigger className="w-full rounded-xl">
+          <SelectTrigger
+            className={cn(
+              'w-full rounded-xl',
+              errors.pangalanNgTanggapan && 'ring-2 ring-destructive border-destructive',
+            )}
+          >
             <SelectValue placeholder="— Pumili —" />
           </SelectTrigger>
           <SelectContent>
@@ -38,13 +46,18 @@ export default function StepOffice({ form, onChange }: Props) {
         </Select>
       </fieldset>
 
-      <fieldset className="space-y-2">
+      <fieldset className="space-y-2" data-error-field="serbisyongIbinigay">
         <label className="text-sm font-semibold text-foreground">Serbisyong ibinigay</label>
         <Select
           value={form.serbisyongIbinigay}
           onValueChange={(v) => onChange({ serbisyongIbinigay: v })}
         >
-          <SelectTrigger className="w-full rounded-xl">
+          <SelectTrigger
+            className={cn(
+              'w-full rounded-xl',
+              errors.serbisyongIbinigay && 'ring-2 ring-destructive border-destructive',
+            )}
+          >
             <SelectValue placeholder="— Pumili —" />
           </SelectTrigger>
           <SelectContent>

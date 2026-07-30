@@ -4,9 +4,10 @@ import StepCC from './StepCC';
 interface Props {
   form: FormData;
   onChange: (patch: Partial<FormData>) => void;
+  errors?: Record<string, boolean>;
 }
 
-export default function SectionCC({ form, onChange }: Props) {
+export default function SectionCC({ form, onChange, errors }: Props) {
   return (
     <div className="space-y-8">
       <div className="space-y-2 rounded-xl border-l-2 border-l-gold bg-muted/50 px-4 py-3">
@@ -17,9 +18,9 @@ export default function SectionCC({ form, onChange }: Props) {
           tagal ng pagpoproseso.
         </p>
       </div>
-      <StepCC num={1} form={form} onChange={onChange} />
-      <StepCC num={2} form={form} onChange={onChange} />
-      <StepCC num={3} form={form} onChange={onChange} />
+      <StepCC num={1} form={form} onChange={onChange} errors={errors} />
+      <StepCC num={2} form={form} onChange={onChange} errors={errors} />
+      <StepCC num={3} form={form} onChange={onChange} errors={errors} />
     </div>
   );
 }
