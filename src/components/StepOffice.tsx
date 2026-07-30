@@ -1,6 +1,7 @@
 import type { FormData } from '../types';
 import { Fragment } from 'react';
 import { OFFICES, SERVICE_GROUPS } from '../data/questions';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import {
   Select,
   SelectContent,
@@ -28,24 +29,29 @@ export default function StepOffice({ form, onChange, errors }: Props) {
           Pangalan ng tanggapan / operating unit
           <BadgeKailangan />
         </label>
-        <Select
+        <RadioGroup
           value={form.pangalanNgTanggapan}
           onValueChange={(v) => onChange({ pangalanNgTanggapan: v })}
+          className={cn(
+            'grid gap-2',
+            errors.pangalanNgTanggapan && 'ring-2 ring-destructive rounded-xl p-1',
+          )}
         >
-          <SelectTrigger
-            className={cn(
-              'w-full rounded-xl',
-              errors.pangalanNgTanggapan && 'ring-2 ring-destructive border-destructive',
-            )}
-          >
-            <SelectValue placeholder="— Pumili —" />
-          </SelectTrigger>
-          <SelectContent>
-            {OFFICES.map((o) => (
-              <SelectItem key={o} value={o}>{o}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          {OFFICES.map((o) => (
+            <label
+              key={o}
+              className={cn(
+                'flex cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 text-sm transition-colors',
+                form.pangalanNgTanggapan === o
+                  ? 'border-primary bg-primary/[0.08] font-semibold text-primary ring-1 ring-primary'
+                  : 'border-input bg-card hover:bg-accent/50',
+              )}
+            >
+              <RadioGroupItem value={o} id={`office-${o}`} className="shrink-0" />
+              <span className="leading-tight">{o}</span>
+            </label>
+          ))}
+        </RadioGroup>
       </fieldset>
 
       <fieldset className="space-y-2" data-error-field="serbisyongIbinigay">
@@ -65,7 +71,7 @@ export default function StepOffice({ form, onChange, errors }: Props) {
           >
             <SelectValue placeholder="— Pumili —" />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent side="top">
             {SERVICE_GROUPS.map((group, gi) => (
               <Fragment key={gi}>
                 {gi > 0 && <SelectSeparator />}
