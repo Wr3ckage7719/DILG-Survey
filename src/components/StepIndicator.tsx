@@ -7,8 +7,6 @@ interface Props {
   total: number;
 }
 
-const SECTION_NAMES = ['Tanggapan', 'Demograpiko', 'CC', 'Kalidad', 'Puná', 'Kumpirma'];
-
 const STEPS = [
   { icon: Building2, label: 'Tanggapan' },
   { icon: Users, label: 'Demo' },
@@ -20,9 +18,6 @@ const STEPS = [
 export default function StepIndicator({ currentIndex, total }: Props) {
   return (
     <div className="mb-8 px-1">
-      <div className="mb-3 text-center text-xs font-semibold text-muted-foreground/70 tracking-wide uppercase">
-        Hakbang {currentIndex + 1} ng {total} — {SECTION_NAMES[currentIndex] ?? ''}
-      </div>
       <div className="flex items-start justify-center gap-1">
         {STEPS.map((step, i) => {
           const isCompleted = i < currentIndex;
