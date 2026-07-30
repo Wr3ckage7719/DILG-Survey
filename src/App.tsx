@@ -26,6 +26,7 @@ import SectionCC from './components/SectionCC';
 import SectionSQD from './components/SectionSQD';
 import SectionFeedback from './components/SectionFeedback';
 import StepIndicator from './components/StepIndicator';
+import StepReview from './components/StepReview';
 
 const spring = { type: 'spring' as const, stiffness: 300, damping: 30 };
 
@@ -35,6 +36,7 @@ const REQUIRED_FIELDS: Record<string, (keyof FormData)[]> = {
   cc: ['cc1', 'cc2', 'cc3'],
   sqd: [],
   feedback: [],
+  review: [],
 };
 
 function validate(sectionId: string, form: FormData): { message: string; key: string } | null {
@@ -77,12 +79,15 @@ export default function App() {
   const [submitting, setSubmitting] = useState(false);
   const [showDisclaimer, setShowDisclaimer] = useState(true);
   const [errors, setErrors] = useState<Record<string, boolean>>({});
+  const [sectionError, setSectionError] = useState<string>('');
+  const [showConfirm, setShowConfirm] = useState(false);
   const [refNumber, setRefNumber] = useState<string>('');
   const honeypotRef = useRef<HTMLInputElement>(null);
   const prefersReduced = useReducedMotion();
 
   const update = useCallback((patch: Partial<FormData>) => {
     setForm((f) => ({ ...f, ...patch }));
+    setSectionError('');
     setErrors((prev) => {
       const patchKey = Object.keys(patch)[0];
       if (!patchKey || !prev[patchKey]) return prev;
@@ -100,15 +105,17 @@ export default function App() {
     const err = validate(sectionId, form);
     if (err) {
       setErrors({ [err.key]: true });
+      setSectionError(err.message);
       vibrateError();
       playErrorSound();
       scrollToError(err.key);
       toast.error(err.message, {
-        className: '!bg-[#BF0D3E] !text-white !border-[#BF0D3E]',
+        className: '!bg-amber-100 !text-amber-900 !border-amber-200 dark:!bg-amber-950/80 dark:!text-amber-200 dark:!border-amber-800',
       });
       return;
     }
     setErrors({});
+    setSectionError('');
     setSectionIdx((s) => s + 1);
     window.scrollTo(0, 0);
   };
@@ -118,16 +125,25 @@ export default function App() {
     window.scrollTo(0, 0);
   };
 
+  const confirmSubmit = () => {
+    if (sectionId === 'review') {
+      setShowConfirm(true);
+    } else {
+      handleSubmit();
+    }
+  };
+
   const handleSubmit = async () => {
     // Validate required fields
     const err = validate(sectionId, form);
     if (err) {
       setErrors({ [err.key]: true });
+      setSectionError(err.message);
       vibrateError();
       playErrorSound();
       scrollToError(err.key);
       toast.error(err.message, {
-        className: '!bg-[#BF0D3E] !text-white !border-[#BF0D3E]',
+        className: '!bg-amber-100 !text-amber-900 !border-amber-200 dark:!bg-amber-950/80 dark:!text-amber-200 dark:!border-amber-800',
       });
       return;
     }
@@ -135,8 +151,9 @@ export default function App() {
     // Validate email/phone format
     const feedbackErr = validateFeedbackSection(form);
     if (feedbackErr) {
+      setSectionError(feedbackErr);
       toast.error(feedbackErr, {
-        className: '!bg-[#BF0D3E] !text-white !border-[#BF0D3E]',
+        className: '!bg-amber-100 !text-amber-900 !border-amber-200 dark:!bg-amber-950/80 dark:!text-amber-200 dark:!border-amber-800',
       });
       return;
     }
@@ -149,6 +166,8 @@ export default function App() {
     }
 
     setErrors({});
+    setSectionError('');
+    setShowConfirm(false);
     setSubmitting(true);
 
     // Generate reference number for audit trail
@@ -162,7 +181,9 @@ export default function App() {
       setSubmitted(true);
       toast.success('Naipadala ang inyong sarbey!');
     } else {
-      toast.error(result.error || 'Hindi nakapag-submit. Pakisubukan muli.');
+      toast.error(result.error || 'Hindi nakapag-submit. Pakisubukan muli.', {
+        className: '!bg-amber-100 !text-amber-900 !border-amber-200 dark:!bg-amber-950/80 dark:!text-amber-200 dark:!border-amber-800',
+      });
     }
   };
 
@@ -178,6 +199,9 @@ export default function App() {
           onChange={update}
           honeypotRef={honeypotRef}
         />
+      );
+      case 'review': return (
+        <StepReview form={form} />
       );
     }
   };
@@ -300,6 +324,11 @@ export default function App() {
                   <h2 className="text-lg font-bold text-primary mb-6 pb-3 border-b border-border/50">
                     {SECTION_LABELS[sectionId]}
                   </h2>
+                  {sectionError && (
+                    <div className="mb-5 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 px-4 py-3.5 text-sm text-amber-800 dark:text-amber-200" role="alert">
+                      <p className="font-medium">⚠️ {sectionError}</p>
+                    </div>
+                  )}
                   {renderSection()}
                 </CardContent>
               </Card>
@@ -325,7 +354,7 @@ export default function App() {
           ) : (
             <Button
               variant="gold"
-              onClick={handleSubmit}
+              onClick={() => setShowConfirm(true)}
               disabled={submitting}
               className="flex-1 rounded-xl"
             >
@@ -334,6 +363,42 @@ export default function App() {
           )}
         </div>
       </div>
+
+      {/* Confirmation dialog */}
+      {showConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="bg-card rounded-2xl shadow-xl border border-t-2 border-t-gold max-w-sm w-full p-6 space-y-4"
+          >
+            <h3 className="font-bold text-lg text-center text-foreground">
+              Kumpirmahin ang Sarbey
+            </h3>
+            <p className="text-sm text-muted-foreground text-center leading-relaxed">
+              Nais mo bang ipadala ang iyong mga tugon? Pakisiguraduhing tama ang lahat ng
+              iyong sagot bago magpatuloy.
+            </p>
+            <div className="flex gap-3 pt-2">
+              <Button
+                variant="outline"
+                className="flex-1 rounded-xl"
+                onClick={() => setShowConfirm(false)}
+              >
+                Kanselahin
+              </Button>
+              <Button
+                variant="gold"
+                className="flex-1 rounded-xl"
+                onClick={handleSubmit}
+                disabled={submitting}
+              >
+                {submitting ? 'Ipinapadala\u2026' : 'Oo, ipadala'}
+              </Button>
+            </div>
+          </motion.div>
+        </div>
+      )}
 
       <Toaster position="top-center" />
     </div>

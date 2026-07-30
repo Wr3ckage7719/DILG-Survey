@@ -2,6 +2,7 @@ import { cn } from '@/lib/utils';
 import type { FormData } from '../types';
 import { CC1_OPTIONS, CC2_OPTIONS, CC3_OPTIONS } from '../data/questions';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Check } from 'lucide-react';
 
 interface Props {
   num: 1 | 2 | 3;
@@ -42,20 +43,27 @@ export default function StepCC({ num, form, onChange, errors }: Props) {
         value={form[key]}
         onValueChange={(v) => onChange({ [key]: v } as Partial<FormData>)}
       >
-        {options.map((o, i) => (
-          <div
-            key={i}
-            onClick={() => onChange({ [key]: o } as Partial<FormData>)}
-            className={`flex items-start gap-3.5 rounded-xl border px-4 py-3.5 cursor-pointer transition-colors ${
-              form[key] === o
-                ? 'border-primary/30 bg-primary/[0.04]'
-                : 'border-input hover:bg-accent'
-            }`}
-          >
-            <RadioGroupItem value={o} className="mt-0.5 pointer-events-none" />
-            <span className="text-sm flex-1 leading-relaxed">{o}</span>
-          </div>
-        ))}
+        {options.map((o, i) => {
+          const isSelected = form[key] === o;
+          return (
+            <div
+              key={i}
+              onClick={() => onChange({ [key]: o } as Partial<FormData>)}
+              className={cn(
+                'flex items-start gap-3.5 rounded-xl border px-4 py-3.5 cursor-pointer transition-colors',
+                isSelected
+                  ? 'border-l-4 border-l-primary border-primary/30 bg-primary/[0.06] font-medium'
+                  : 'border-input hover:bg-accent/60',
+              )}
+            >
+              <RadioGroupItem value={o} className="mt-0.5 pointer-events-none" />
+              <span className="text-sm flex-1 leading-relaxed">{o}</span>
+              {isSelected && (
+                <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" absoluteStrokeWidth />
+              )}
+            </div>
+          );
+        })}
       </RadioGroup>
     </fieldset>
   );
