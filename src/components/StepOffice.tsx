@@ -1,6 +1,5 @@
 import type { FormData } from '../types';
 import { Fragment } from 'react';
-import type { FormData } from '../types';
 import { OFFICES, SERVICE_GROUPS } from '../data/questions';
 import {
   Select,
@@ -21,7 +20,7 @@ interface Props {
   errors: Record<string, boolean>;
 }
 
-export default function StepOffice({ form, onChange }: Props) {
+export default function StepOffice({ form, onChange, errors }: Props) {
   return (
     <div className="space-y-7">
       <fieldset className="space-y-2" data-error-field="pangalanNgTanggapan">

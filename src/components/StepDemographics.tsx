@@ -1,5 +1,4 @@
 import type { FormData } from '../types';
-import type { FormData } from '../types';
 import { KLIYENTE, EDAD, KASARIAN, REGION_GROUPS } from '../data/questions';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import {
@@ -21,7 +20,7 @@ interface Props {
   errors: Record<string, boolean>;
 }
 
-export default function StepDemographics({ form, onChange }: Props) {
+export default function StepDemographics({ form, onChange, errors }: Props) {
   return (
     <div className="space-y-8">
       <RadioGroupBlock label="Uri ng Kliyente" options={KLIYENTE} value={form.uriNgKliyente} onChange={(v) => onChange({ uriNgKliyente: v })} errorKey="uriNgKliyente" errors={errors} />
