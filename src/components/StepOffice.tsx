@@ -25,26 +25,23 @@ export default function StepOffice({ form, onChange, errors }: Props) {
   return (
     <div className="space-y-7">
       <fieldset className="space-y-2" data-error-field="pangalanNgTanggapan">
-        <label className="text-sm font-semibold text-foreground">
+        <label className="text-[15px] font-semibold text-foreground">
           Pangalan ng tanggapan / operating unit
-          <BadgeKailangan />
+          <RequiredIcon />
         </label>
         <RadioGroup
           value={form.pangalanNgTanggapan}
           onValueChange={(v) => onChange({ pangalanNgTanggapan: v })}
-          className={cn(
-            'grid gap-2',
-            errors.pangalanNgTanggapan && 'ring-2 ring-destructive rounded-xl p-1',
-          )}
+          className="grid gap-2"
         >
           {OFFICES.map((o) => (
             <label
               key={o}
               className={cn(
-                'flex cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 text-sm transition-colors',
+                'flex cursor-pointer items-center gap-3.5 rounded-2xl border px-5 py-3.5 text-[15px] transition-all duration-200',
                 form.pangalanNgTanggapan === o
-                  ? 'border-primary bg-primary/[0.08] font-semibold text-primary ring-1 ring-primary'
-                  : 'border-input bg-card hover:bg-accent/50',
+                  ? 'border-l-[3px] border-l-accent border-accent/20 bg-accent/[0.04] font-semibold text-accent'
+                  : 'border-border/80 bg-card hover:bg-accent/5 hover:border-border',
               )}
             >
               <RadioGroupItem value={o} id={`office-${o}`} className="shrink-0" />
@@ -52,23 +49,21 @@ export default function StepOffice({ form, onChange, errors }: Props) {
             </label>
           ))}
         </RadioGroup>
+        {errors.pangalanNgTanggapan && (
+          <p className="text-xs text-destructive/70 pl-1">Pumili ng tanggapan</p>
+        )}
       </fieldset>
 
       <fieldset className="space-y-2" data-error-field="serbisyongIbinigay">
-        <label className="text-sm font-semibold text-foreground">
+        <label className="text-[15px] font-semibold text-foreground">
           Serbisyong ibinigay
-          <BadgeKailangan />
+          <RequiredIcon />
         </label>
         <Select
           value={form.serbisyongIbinigay}
           onValueChange={(v) => onChange({ serbisyongIbinigay: v })}
         >
-          <SelectTrigger
-            className={cn(
-              'w-full rounded-xl',
-              errors.serbisyongIbinigay && 'ring-2 ring-destructive border-destructive',
-            )}
-          >
+          <SelectTrigger className="w-full rounded-xl">
             <SelectValue placeholder="— Pumili —" />
           </SelectTrigger>
           <SelectContent side="top">
@@ -85,11 +80,14 @@ export default function StepOffice({ form, onChange, errors }: Props) {
             ))}
           </SelectContent>
         </Select>
+        {errors.serbisyongIbinigay && (
+          <p className="text-xs text-destructive/70 pl-1">Pumili ng serbisyo</p>
+        )}
       </fieldset>
 
       {form.serbisyongIbinigay === 'Other/s (Tukuyin ang iba pang serbisyo)' && (
-        <div className="ml-2 pl-4 border-l-2 border-primary/30">
-          <label className="block text-sm font-medium text-foreground mb-1">
+        <div className="ml-2 pl-4 border-l-2 border-accent/20">
+          <label className="block text-[15px] font-medium text-foreground mb-1.5">
             Tukuyin ang iba pang serbisyo:
           </label>
           <Input
@@ -104,10 +102,8 @@ export default function StepOffice({ form, onChange, errors }: Props) {
   );
 }
 
-function BadgeKailangan() {
+function RequiredIcon() {
   return (
-    <span className="ml-1.5 inline-flex items-center rounded-full bg-primary/[0.09] px-1.5 py-[1px] text-[10px] font-medium tracking-wide text-primary align-middle">
-      kailangan
-    </span>
+    <span className="ml-1 text-destructive text-sm font-bold leading-none" aria-label="required">*</span>
   );
 }

@@ -28,15 +28,10 @@ export default function StepCC({ num, form, onChange, errors }: Props) {
 
   return (
     <fieldset
-      className={cn('space-y-3', hasError && 'rounded-xl ring-2 ring-destructive p-3 -mx-2')}
+      className="space-y-3"
       data-error-field={key}
     >
-      <p
-        className={cn(
-          'text-sm font-semibold leading-relaxed',
-          hasError ? 'text-destructive' : 'text-foreground',
-        )}
-      >
+      <p className="text-[15px] font-semibold leading-relaxed text-foreground">
         {title}
       </p>
       <RadioGroup
@@ -46,25 +41,28 @@ export default function StepCC({ num, form, onChange, errors }: Props) {
         {options.map((o, i) => {
           const isSelected = form[key] === o;
           return (
-            <div
-              key={i}
-              onClick={() => onChange({ [key]: o } as Partial<FormData>)}
-              className={cn(
-                'flex items-start gap-3.5 rounded-xl border px-4 py-3.5 cursor-pointer transition-colors',
-                isSelected
-                  ? 'border-l-4 border-l-primary border-primary/30 bg-primary/[0.06] font-medium'
-                  : 'border-input hover:bg-accent/60',
-              )}
-            >
+          <div
+            key={i}
+            onClick={() => onChange({ [key]: o } as Partial<FormData>)}
+            className={cn(
+              'flex items-start gap-3.5 rounded-2xl border px-5 py-3.5 cursor-pointer transition-all duration-200 text-[15px]',
+              isSelected
+                ? 'border-l-[3px] border-l-accent border-accent/20 bg-accent/[0.04] font-medium'
+                : 'border-border/80 bg-card hover:bg-accent/5 hover:border-border',
+            )}
+          >
               <RadioGroupItem value={o} className="mt-0.5 pointer-events-none" />
               <span className="text-sm flex-1 leading-relaxed">{o}</span>
               {isSelected && (
-                <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" absoluteStrokeWidth />
+                <Check className="mt-0.5 h-4 w-4 shrink-0 text-accent" absoluteStrokeWidth />
               )}
             </div>
           );
         })}
       </RadioGroup>
+      {hasError && (
+        <p className="text-xs text-destructive/70 pl-1">Pumili ng sagot</p>
+      )}
     </fieldset>
   );
 }

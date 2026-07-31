@@ -1,4 +1,3 @@
-import { motion } from 'framer-motion';
 import { Building2, Users, ClipboardList, Star, MessageSquare, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -18,47 +17,35 @@ const STEPS = [
 export default function StepIndicator({ currentIndex, total }: Props) {
   return (
     <div className="mb-8 px-1">
-      <div className="flex items-start justify-center gap-1">
+      <div className="flex items-center justify-center">
         {STEPS.map((step, i) => {
           const isCompleted = i < currentIndex;
           const isActive = i === currentIndex;
-          const isPending = i > currentIndex;
           const Icon = step.icon;
 
           return (
-            <div key={i} className="flex items-start flex-1">
-              <div className="flex flex-col items-center gap-1.5 flex-1">
-                <div className="relative flex items-center justify-center">
-                  <div
-                    className={cn(
-                      'size-9 md:w-8 md:h-8 rounded-full flex items-center justify-center transition-colors duration-300',
-                      isCompleted && 'bg-primary text-primary-foreground',
-                      isActive && 'bg-gold text-gold-foreground',
-                      isPending && 'border-2 border-muted-foreground/25 text-muted-foreground/40 bg-transparent',
-                    )}
-                  >
-                    {isCompleted ? (
-                      <Check className="size-4 md:w-3.5 md:h-3.5" strokeWidth={2.5} />
-                    ) : (
-                      <Icon className="size-4 md:w-3.5 md:h-3.5" />
-                    )}
-                  </div>
-
-                  {isActive && (
-                    <motion.div
-                      className="absolute inset-0 rounded-full border-2 border-gold/60"
-                      animate={{ scale: [1, 1.35, 1], opacity: [0.6, 0, 0.6] }}
-                      transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }}
-                    />
+            <div key={i} className="flex items-center flex-1 last:flex-none">
+              <div className="flex flex-col items-center gap-1.5">
+                <div
+                  className={cn(
+                    'size-9 rounded-full flex items-center justify-center transition-all duration-300',
+                    isCompleted && 'bg-primary text-primary-foreground',
+                    isActive && 'bg-accent text-white ring-4 ring-accent/20',
+                    !isCompleted && !isActive && 'bg-muted text-muted-foreground/40',
+                  )}
+                >
+                  {isCompleted ? (
+                    <Check className="size-4" strokeWidth={2.5} />
+                  ) : (
+                    <Icon className="size-4" />
                   )}
                 </div>
-
                 <span
                   className={cn(
-                    'text-[11px] md:text-[10px] font-semibold tracking-tight uppercase transition-colors duration-300 text-center leading-tight',
-                    isActive && 'text-gold',
+                    'text-[10px] font-semibold tracking-tight uppercase text-center leading-tight',
+                    isActive && 'text-accent',
                     isCompleted && 'text-primary/70',
-                    isPending && 'text-muted-foreground/40',
+                    !isCompleted && !isActive && 'text-muted-foreground/40',
                   )}
                 >
                   {step.label}
@@ -66,11 +53,11 @@ export default function StepIndicator({ currentIndex, total }: Props) {
               </div>
 
               {i < total - 1 && (
-                <div className="flex-1 h-px mt-3.5 mx-0.5">
+                <div className="flex-1 h-[2px] mx-2 mt-[-18px]">
                   <div
                     className={cn(
                       'h-full rounded-full transition-all duration-500',
-                      i < currentIndex ? 'bg-primary' : 'bg-muted-foreground/20',
+                      i < currentIndex ? 'bg-primary' : 'bg-muted-foreground/15',
                     )}
                   />
                 </div>

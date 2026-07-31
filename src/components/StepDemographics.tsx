@@ -29,17 +29,12 @@ export default function StepDemographics({ form, onChange, errors }: Props) {
       <RadioGroupBlock label="Kasarian" options={KASARIAN} value={form.kasarian} onChange={(v) => onChange({ kasarian: v })} errorKey="kasarian" errors={errors} required />
 
       <fieldset className="space-y-2" data-error-field="rehiyon">
-        <label className="text-sm font-semibold text-foreground">
+        <label className="text-[15px] font-semibold text-foreground">
           Rehiyon ng tirahan
-          <BadgeKailangan />
+          <RequiredIcon />
         </label>
         <Select value={form.rehiyon} onValueChange={(v) => onChange({ rehiyon: v })}>
-          <SelectTrigger
-            className={cn(
-              'w-full rounded-xl',
-              errors.rehiyon && 'ring-2 ring-destructive border-destructive',
-            )}
-          >
+          <SelectTrigger className="w-full rounded-xl">
             <SelectValue placeholder="— Pumili —" />
           </SelectTrigger>
           <SelectContent side="top">
@@ -56,6 +51,9 @@ export default function StepDemographics({ form, onChange, errors }: Props) {
             ))}
           </SelectContent>
         </Select>
+        {errors.rehiyon && (
+          <p className="text-xs text-destructive/70 pl-1">Pumili ng rehiyon</p>
+        )}
       </fieldset>
     </div>
   );
@@ -76,46 +74,42 @@ function RadioGroupBlock(props: {
   const isSelected = (option: string) => props.value === option;
   return (
     <fieldset
-      className={cn('space-y-3', hasError && 'rounded-xl ring-2 ring-destructive p-3 -mx-2')}
+      className="space-y-3"
       data-error-field={props.errorKey}
     >
-      <label
-        className={cn(
-          'text-sm font-semibold',
-          hasError ? 'text-destructive' : 'text-foreground',
-        )}
-      >
+      <label className="text-[15px] font-semibold text-foreground">
         {props.label}
-        {props.required && <BadgeKailangan />}
+        {props.required && <RequiredIcon />}
       </label>
       <RadioGroup value={props.value} onValueChange={props.onChange}>
         {props.options.map((o) => (
-          <div
-            key={o}
-            onClick={() => props.onChange(o)}
-            className={cn(
-              'flex items-center gap-3.5 rounded-xl border px-4 py-3 cursor-pointer transition-colors',
-              isSelected(o)
-                ? 'border-l-4 border-l-primary border-primary/30 bg-primary/[0.06] font-medium'
-                : 'border-input hover:bg-accent/60',
-            )}
-          >
+        <div
+          key={o}
+          onClick={() => props.onChange(o)}
+          className={cn(
+            'flex items-center gap-3.5 rounded-2xl border px-5 py-3.5 cursor-pointer transition-all duration-200 text-[15px]',
+            isSelected(o)
+              ? 'border-l-[3px] border-l-accent border-accent/20 bg-accent/[0.04] font-medium'
+              : 'border-border/80 bg-card hover:bg-accent/5 hover:border-border',
+          )}
+        >
             <RadioGroupItem value={o} className="pointer-events-none" />
             <span className="text-sm flex-1 leading-relaxed">{o}</span>
             {isSelected(o) && (
-              <Check className="h-4 w-4 shrink-0 text-primary" absoluteStrokeWidth />
+              <Check className="h-4 w-4 shrink-0 text-accent" absoluteStrokeWidth />
             )}
           </div>
         ))}
       </RadioGroup>
+      {hasError && (
+        <p className="text-xs text-destructive/70 pl-1">Pumili ng {props.label.toLowerCase()}</p>
+      )}
     </fieldset>
   );
 }
 
-function BadgeKailangan() {
+function RequiredIcon() {
   return (
-    <span className="ml-1.5 inline-flex items-center rounded-full bg-primary/[0.09] px-1.5 py-[1px] text-[10px] font-medium tracking-wide text-primary align-middle">
-      kailangan
-    </span>
+    <span className="ml-1 text-destructive text-sm font-bold leading-none" aria-label="required">*</span>
   );
 }

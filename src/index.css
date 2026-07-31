@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -6,71 +6,66 @@
 
 @layer base {
   :root {
+    /* 60-30-10: 60% white, 30% navy, 10% bright blue accent */
     --background: 0 0% 100%;
-    --foreground: 221 20% 12%;
+    --foreground: 222 15% 14%;
 
     --card: 0 0% 100%;
-    --card-foreground: 221 20% 12%;
+    --card-foreground: 222 15% 14%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 221 20% 12%;
+    --popover-foreground: 222 15% 14%;
 
-    --primary: 221 100% 30%;
+    --primary: 221 100% 28%;
     --primary-foreground: 0 0% 100%;
 
-    --gold: 47 99% 63%;
-    --gold-foreground: 221 20% 12%;
+    --accent: 217 91% 60%;
+    --accent-foreground: 0 0% 100%;
 
-    --secondary: 221 20% 95%;
-    --secondary-foreground: 221 20% 15%;
+    --secondary: 220 14% 96%;
+    --secondary-foreground: 222 15% 15%;
 
-    --muted: 221 15% 95%;
-    --muted-foreground: 221 8% 45%;
+    --muted: 220 14% 96%;
+    --muted-foreground: 220 9% 46%;
 
-    --accent: 221 20% 94%;
-    --accent-foreground: 221 20% 15%;
-
-    --destructive: 348 87% 40%;
+    --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 221 15% 89%;
-    --input: 221 15% 89%;
-    --ring: 221 100% 30%;
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 217 91% 60%;
 
-    --radius: 1rem;
+    --radius: 0.875rem;
   }
 
   .dark {
-    --background: 221 30% 5%;
-    --foreground: 0 0% 93%;
+    --background: 222 25% 7%;
+    --foreground: 210 20% 92%;
 
-    --card: 221 25% 8%;
-    --card-foreground: 0 0% 93%;
+    --card: 222 20% 10%;
+    --card-foreground: 210 20% 92%;
 
-    --popover: 221 25% 8%;
-    --popover-foreground: 0 0% 93%;
+    --popover: 222 20% 10%;
+    --popover-foreground: 210 20% 92%;
 
-    --primary: 221 100% 30%;
+    --primary: 221 100% 32%;
     --primary-foreground: 0 0% 100%;
 
-    --gold: 47 99% 63%;
-    --gold-foreground: 0 0% 10%;
+    --accent: 217 91% 60%;
+    --accent-foreground: 0 0% 100%;
 
-    --secondary: 221 20% 15%;
-    --secondary-foreground: 0 0% 93%;
+    --secondary: 220 14% 14%;
+    --secondary-foreground: 210 20% 92%;
 
-    --muted: 221 15% 15%;
-    --muted-foreground: 0 0% 60%;
+    --muted: 220 14% 14%;
+    --muted-foreground: 220 9% 55%;
 
-    --accent: 221 20% 16%;
-    --accent-foreground: 0 0% 93%;
-
-    --destructive: 348 87% 40%;
+    --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 221 15% 18%;
-    --input: 221 15% 18%;
-    --ring: 221 100% 30%;
+    --border: 220 13% 17%;
+    --input: 220 13% 17%;
+    --ring: 217 91% 60%;
   }
 }
 
@@ -81,22 +76,21 @@
 
   body {
     @apply bg-background text-foreground antialiased;
-    font-family: 'Poppins', system-ui, -apple-system, sans-serif;
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
     scroll-behavior: smooth;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 
-  /* Override Radix Select truncation — full text wraps instead of ellipsis */
   [data-radix-select-item] [data-radix-select-item-text] {
     white-space: normal !important;
   }
 }
 
-/* navy-tinted radial gradient background */
 .bg-survey {
   background:
-    radial-gradient(ellipse 80% 60% at 50% 0%, hsl(221 100% 30% / 0.04), transparent),
-    radial-gradient(ellipse 60% 50% at 50% 100%, hsl(221 100% 30% / 0.03), transparent),
-    hsl(var(--background));
+    radial-gradient(ellipse 80% 50% at 50% 0%, hsl(221 100% 28% / 0.03), transparent),
+    #ffffff;
 }
 
 @media (prefers-reduced-motion: reduce) {

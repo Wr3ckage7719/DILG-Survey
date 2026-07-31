@@ -26,16 +26,16 @@ export default function SectionFeedback({ form, onChange, honeypotRef }: Props) 
         />
       </div>
 
-      <div className="space-y-3">
+      <div className="space-y-4">
         <h3 className="text-base font-bold text-primary">Mga mungkahi</h3>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-[15px] text-muted-foreground">
           Paano pa mapapabuti ang aming serbisyo?
         </p>
         <Textarea
           placeholder="Isulat ang inyong mungkahi..."
           value={form.mgaMungkahi}
           onChange={(e) => onChange({ mgaMungkahi: e.target.value })}
-          className="min-h-[130px] rounded-xl resize-none"
+          className="min-h-[140px] rounded-xl resize-none"
           maxLength={2000}
         />
         <p className="text-[10px] text-right text-muted-foreground">
@@ -43,16 +43,16 @@ export default function SectionFeedback({ form, onChange, honeypotRef }: Props) 
         </p>
       </div>
 
-      <Separator />
+      <Separator className="my-2" />
 
-      <div className="space-y-3">
-        <div className="space-y-1">
+      <div className="space-y-4">
+        <div className="space-y-1.5">
           <h3 className="text-base font-bold text-primary">Impormasyon ng Kliyente</h3>
           <p className="text-xs text-muted-foreground">Hindi required. Punan lamang kung nais mong makontak ka namin.</p>
         </div>
 
         <fieldset className="space-y-2">
-          <label className="text-sm font-semibold text-foreground">Pangalan (optional)</label>
+          <label className="text-[15px] font-semibold text-foreground">Pangalan (optional)</label>
           <Input
             value={form.pangalan}
             onChange={(e) => onChange({ pangalan: e.target.value })}
@@ -62,7 +62,7 @@ export default function SectionFeedback({ form, onChange, honeypotRef }: Props) 
           />
         </fieldset>
         <fieldset className="space-y-2">
-          <label className="text-sm font-semibold text-foreground">Contact number</label>
+          <label className="text-[15px] font-semibold text-foreground">Contact number</label>
           <Input
             value={form.contactNumber}
             onChange={(e) => onChange({ contactNumber: e.target.value })}
@@ -73,7 +73,7 @@ export default function SectionFeedback({ form, onChange, honeypotRef }: Props) 
           />
         </fieldset>
         <fieldset className="space-y-2">
-          <label className="text-sm font-semibold text-foreground">Email address</label>
+          <label className="text-[15px] font-semibold text-foreground">Email address</label>
           <Input
             type="email"
             value={form.emailAddress}

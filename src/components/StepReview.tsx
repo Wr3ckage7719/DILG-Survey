@@ -114,12 +114,12 @@ function SectionSummary({
   editSection: string;
 }) {
   const filledCount = fields.filter((f) => f.value && f.value !== '(walang isinulat)' && f.value !== '(hindi ibinigay)').length;
-  return (
+    return (
     <div className={cn(
-      'rounded-xl border px-4 py-3.5 space-y-2',
+      'rounded-2xl border px-5 py-4 space-y-2.5',
       filledCount === fields.length
-        ? 'border-border bg-card'
-        : 'border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/20',
+        ? 'border-border/60 bg-card'
+        : 'border-amber-200/60 dark:border-amber-800/60 bg-amber-50/30 dark:bg-amber-950/20',
     )}>
       <div className="flex items-center justify-between">
         <p className="text-xs font-bold text-muted-foreground tracking-wide uppercase">
@@ -128,13 +128,13 @@ function SectionSummary({
         <span className="inline-flex items-center gap-1 text-[10px] font-medium text-muted-foreground/60">
           {filledCount}/{fields.length}
           {filledCount === fields.length && (
-            <Check className="h-3 w-3 text-primary" strokeWidth={3} />
+            <Check className="h-3 w-3 text-accent" strokeWidth={3} />
           )}
         </span>
       </div>
       <div className="space-y-1.5">
         {fields.map((f) => (
-          <div key={f.label} className="flex items-start gap-2 text-sm">
+          <div key={f.label} className="flex items-start gap-2 text-[15px]">
             <span className="text-muted-foreground/60 shrink-0 min-w-[7rem] text-xs">
               {f.label}:
             </span>

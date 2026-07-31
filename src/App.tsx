@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { toast } from 'sonner';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ArrowRight, ChevronDown, ChevronLeft } from 'lucide-react';
 
 import { type FormData, SECTIONS, SECTION_LABELS, INITIAL_FORM } from './types';
 import { DISCLAIMER } from './data/questions';
@@ -12,7 +12,6 @@ import {
   validateEmail,
   validatePhone,
 } from './api/submit';
-import { vibrateError, playErrorSound, scrollToError } from './lib/feedback';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -31,6 +30,22 @@ import StepReview from './components/StepReview';
 
 const spring = { type: 'spring' as const, stiffness: 300, damping: 30 };
 
+const MotionButton = motion.create(Button);
+const slideArrowVariants = {
+  rest:  { opacity: 0, width: 0, x: -6 },
+  hover: { opacity: 1, width: 20, x: 0 },
+};
+
+/** Render text with certain phrases wrapped in <strong> */
+function renderBoldText(text: string, boldPhrases: string[]) {
+  if (!boldPhrases.length) return text;
+  const pattern = new RegExp(`(${boldPhrases.map(p => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})`, 'g');
+  const parts = text.split(pattern);
+  return parts.map((part, i) =>
+    boldPhrases.includes(part) ? <strong key={i}>{part}</strong> : part
+  );
+}
+
 const REQUIRED_FIELDS: Record<string, (keyof FormData)[]> = {
   office: ['pangalanNgTanggapan', 'serbisyongIbinigay'],
   demographics: ['uriNgKliyente', 'edad', 'kasarian', 'rehiyon'],
@@ -40,27 +55,13 @@ const REQUIRED_FIELDS: Record<string, (keyof FormData)[]> = {
   review: [],
 };
 
-function validate(sectionId: string, form: FormData): { message: string; key: string } | null {
+function validate(sectionId: string, form: FormData): string[] {
   const fields = REQUIRED_FIELDS[sectionId];
-  if (!fields) return null;
-  for (const key of fields) {
+  if (!fields) return [];
+  return fields.filter((key) => {
     const v = form[key];
-    if (!v || (typeof v === 'string' && v.trim() === '')) {
-      const labels: Record<string, string> = {
-        pangalanNgTanggapan: 'Pangalan ng tanggapan',
-        serbisyongIbinigay: 'Serbisyong ibinigay',
-        uriNgKliyente: 'Uri ng Kliyente',
-        edad: 'Edad',
-        kasarian: 'Kasarian',
-        rehiyon: 'Rehiyon',
-        cc1: 'CC1',
-        cc2: 'CC2',
-        cc3: 'CC3',
-      };
-      return { message: `Punan ang ${labels[key] || key}`, key };
-    }
-  }
-  return null;
+    return !v || (typeof v === 'string' && v.trim() === '');
+  });
 }
 
 function validateFeedbackSection(form: FormData): string | null {
@@ -81,15 +82,14 @@ export default function App() {
   const [showDisclaimer, setShowDisclaimer] = useState(true);
   const [consentChecked, setConsentChecked] = useState(false);
   const [errors, setErrors] = useState<Record<string, boolean>>({});
-  const [sectionError, setSectionError] = useState<string>('');
   const [showConfirm, setShowConfirm] = useState(false);
   const [refNumber, setRefNumber] = useState<string>('');
+  const [privacyExpanded, setPrivacyExpanded] = useState(false);
   const honeypotRef = useRef<HTMLInputElement>(null);
   const prefersReduced = useReducedMotion();
 
   const update = useCallback((patch: Partial<FormData>) => {
     setForm((f) => ({ ...f, ...patch }));
-    setSectionError('');
     setErrors((prev) => {
       const patchKey = Object.keys(patch)[0];
       if (!patchKey || !prev[patchKey]) return prev;
@@ -103,21 +103,22 @@ export default function App() {
   const total = SECTIONS.length;
   const isLast = sectionIdx === total - 1;
 
+  const scrollToFirstError = (keys: string[]) => {
+    const firstKey = keys[0];
+    const el = document.querySelector(`[data-error-field="${firstKey}"]`);
+    el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  };
+
   const next = () => {
-    const err = validate(sectionId, form);
-    if (err) {
-      setErrors({ [err.key]: true });
-      setSectionError(err.message);
-      vibrateError();
-      playErrorSound();
-      scrollToError(err.key);
-      toast.error(err.message, {
-        className: '!bg-amber-100 !text-amber-900 !border-amber-200 dark:!bg-amber-950/80 dark:!text-amber-200 dark:!border-amber-800',
-      });
+    const errorKeys = validate(sectionId, form);
+    if (errorKeys.length > 0) {
+      const errorMap: Record<string, boolean> = {};
+      errorKeys.forEach((key) => { errorMap[key] = true; });
+      setErrors(errorMap);
+      scrollToFirstError(errorKeys);
       return;
     }
     setErrors({});
-    setSectionError('');
     setSectionIdx((s) => s + 1);
     window.scrollTo(0, 0);
   };
@@ -137,26 +138,18 @@ export default function App() {
 
   const handleSubmit = async () => {
     // Validate required fields
-    const err = validate(sectionId, form);
-    if (err) {
-      setErrors({ [err.key]: true });
-      setSectionError(err.message);
-      vibrateError();
-      playErrorSound();
-      scrollToError(err.key);
-      toast.error(err.message, {
-        className: '!bg-amber-100 !text-amber-900 !border-amber-200 dark:!bg-amber-950/80 dark:!text-amber-200 dark:!border-amber-800',
-      });
+    const errorKeys = validate(sectionId, form);
+    if (errorKeys.length > 0) {
+      const errorMap: Record<string, boolean> = {};
+      errorKeys.forEach((key) => { errorMap[key] = true; });
+      setErrors(errorMap);
+      scrollToFirstError(errorKeys);
       return;
     }
 
     // Validate email/phone format
     const feedbackErr = validateFeedbackSection(form);
     if (feedbackErr) {
-      setSectionError(feedbackErr);
-      toast.error(feedbackErr, {
-        className: '!bg-amber-100 !text-amber-900 !border-amber-200 dark:!bg-amber-950/80 dark:!text-amber-200 dark:!border-amber-800',
-      });
       return;
     }
 
@@ -168,7 +161,6 @@ export default function App() {
     }
 
     setErrors({});
-    setSectionError('');
     setShowConfirm(false);
     setSubmitting(true);
 
@@ -183,9 +175,7 @@ export default function App() {
       setSubmitted(true);
       toast.success('Naipadala ang inyong sarbey!');
     } else {
-      toast.error(result.error || 'Hindi nakapag-submit. Pakisubukan muli.', {
-        className: '!bg-amber-100 !text-amber-900 !border-amber-200 dark:!bg-amber-950/80 dark:!text-amber-200 dark:!border-amber-800',
-      });
+      toast.error(result.error || 'Hindi nakapag-submit. Pakisubukan muli.');
     }
   };
 
@@ -211,70 +201,109 @@ export default function App() {
   if (showDisclaimer) {
     return (
       <>
-        <div className="min-h-screen flex items-center justify-center p-4 bg-survey">
-        <Card className="max-w-lg w-full rounded-2xl shadow-sm border border-t-2 border-t-primary">
-          <CardContent className="p-6 md:p-8 text-center space-y-5">
+        <div className="min-h-screen flex items-center justify-center p-5 bg-white">
+          <div className="max-w-lg w-full space-y-5 text-center">
+            {/* Logo - Stacked layout */}
             <img
-              src={LogoSrc}
+              src="/logo.png"
               alt="DILG Logo"
-              className="h-20 mx-auto object-contain"
+              className="h-24 mx-auto object-contain"
             />
-            <div className="space-y-1">
-              <p className="text-xs text-muted-foreground">FM-SP-DILG-07-07B</p>
-              <h2 className="text-base font-bold text-primary">
-                CLIENT SATISFACTION SURVEY (ON-SITE)
-              </h2>
-            </div>
-            <div className="text-left space-y-2">
-              <h3 className="font-semibold text-sm text-foreground">Data Privacy Consent</h3>
-              <p className="text-xs font-medium text-muted-foreground flex items-center gap-1">
-                <span className="size-1.5 rounded-full bg-primary" />
-                {DISCLAIMER.title}
-              </p>
-              <p className="text-sm text-muted-foreground whitespace-pre-line leading-relaxed">
-                {DISCLAIMER.text}
-              </p>
+
+            {/* Form code */}
+            <p className="text-xs text-muted-foreground">FM-SP-DILG-07-07B</p>
+
+            {/* Title */}
+            <h1 className="text-2xl font-extrabold text-foreground tracking-tight">
+              CLIENT SATISFACTION SURVEY (ON-SITE)
+            </h1>
+
+            {/* Animation GIF */}
+            <img
+              src="/animation-gif.gif"
+              alt="Animation"
+              className="w-full max-w-[280px] mx-auto rounded-xl"
+            />
+
+            {/* Privacy consent dropdown */}
+            <div className="border border-border rounded-lg overflow-hidden text-left">
+              <button
+                type="button"
+                onClick={() => setPrivacyExpanded(!privacyExpanded)}
+                className="w-full flex items-center justify-between p-4 gap-3 hover:bg-secondary/50 transition-colors"
+              >
+                <span className="text-sm text-foreground">
+                  Pakibasa ang Data Privacy Notice at ibigay ang iyong pahintulot.
+                </span>
+                <ChevronDown
+                  className={cn(
+                    "w-5 h-5 shrink-0 text-foreground transition-transform duration-200",
+                    privacyExpanded && "rotate-180"
+                  )}
+                />
+              </button>
+
+              <AnimatePresence>
+                {privacyExpanded && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="px-5 pb-5 border-t border-border pt-4">
+                      <p className="text-sm font-semibold text-foreground flex items-center gap-1 mb-3">
+                        <span className="size-1.5 rounded-full bg-primary" />
+                        {DISCLAIMER.title}
+                      </p>
+                      <p className="text-base text-foreground leading-loose">
+                        {renderBoldText(DISCLAIMER.text, DISCLAIMER.boldPhrases)}
+                      </p>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
 
             {/* Consent checkbox */}
-            <label
-              className={cn(
-                'flex items-start gap-3 rounded-xl border px-4 py-3.5 cursor-pointer transition-colors text-left',
-                consentChecked
-                  ? 'border-primary/30 bg-primary/[0.04]'
-                  : 'border-input hover:bg-accent/50',
-              )}
-            >
+            <label className="flex items-center gap-3 cursor-pointer text-left">
               <input
                 type="checkbox"
                 checked={consentChecked}
                 onChange={(e) => setConsentChecked(e.target.checked)}
-                className="mt-0.5 size-4 shrink-0 accent-primary rounded"
+                className="size-4 shrink-0 accent-primary rounded"
               />
-              <span className="text-xs text-muted-foreground leading-relaxed select-none">
-                Pumapayag ako na kolektahin, gamitin, at itago ng DILG ang aking personal
-                na datos alinsunod sa nakasaad sa itaas at sa ilalim ng Data Privacy Act
-                (RA 10173).
+              <span className="text-sm text-muted-foreground leading-relaxed select-none">
+                Nabasa ko na ang Data Privacy Notice at nagbibigay ako ng aking pahintulot.
               </span>
             </label>
 
-            <Button
+            {/* Submit button */}
+            <MotionButton
               onClick={() => setShowDisclaimer(false)}
               size="lg"
-              variant="gold"
               disabled={!consentChecked}
-              className="w-full rounded-xl"
+              initial="rest"
+              whileHover="hover"
+              className="w-full rounded-full bg-primary hover:bg-primary/90 text-white font-semibold py-6 text-base"
             >
-              Pumapayag at Simulan ang Sarbey
-            </Button>
+              MAGPATULOY
+              <motion.span
+                variants={slideArrowVariants}
+                transition={{ duration: 0.2, ease: 'easeOut' }}
+                className="overflow-hidden flex items-center"
+              >
+                <ArrowRight className="w-4 h-4 shrink-0" />
+              </motion.span>
+            </MotionButton>
             {!consentChecked && (
-              <p className="text-[10px] text-muted-foreground/50">
+              <p className="text-xs text-muted-foreground/70">
                 Kailangan munang magbigay ng pahintulot bago magpatuloy.
               </p>
             )}
-          </CardContent>
-        </Card>
-      </div>
+          </div>
+        </div>
       </>
     );
   }
@@ -282,10 +311,10 @@ export default function App() {
   if (submitted) {
     return (
       <>
-        <div className="min-h-screen flex items-center justify-center p-4 bg-survey">
-        <Card className="max-w-lg w-full rounded-2xl shadow-sm border border-t-2 border-t-gold">
-          <CardContent className="p-8 text-center space-y-3">
-            <div className="mx-auto w-40 h-40 rounded-full ring-4 ring-gold/30 p-2">
+        <div className="min-h-screen flex items-center justify-center p-5 bg-survey">
+        <Card className="max-w-lg w-full rounded-3xl border border-black/[0.06] bg-white shadow-[0_1px_6px_-1px_rgba(0,25,70,0.12),0_6px_18px_-4px_rgba(0,25,70,0.08)]">
+          <CardContent className="p-8 text-center space-y-4">
+            <div className="mx-auto w-40 h-40 rounded-full ring-4 ring-accent/20 p-2">
               <DotLottiePlayer
                 src="/Trophy.lottie"
                 autoplay
@@ -323,13 +352,13 @@ export default function App() {
 
       {/* Progress bar */}
       <motion.div
-        className="fixed top-0 left-0 h-1 z-50 bg-gradient-to-r from-primary via-primary to-gold"
+        className="fixed top-0 left-0 h-[3px] z-50 bg-accent"
         animate={{ width: `${((sectionIdx + 1) / total) * 100}%` }}
         transition={spring}
       />
 
-      <div className="flex-1 flex items-start justify-center p-4 pt-4 pb-28">
-        <div className="max-w-lg w-full">
+      <div className="flex-1 flex items-start justify-center p-5 pt-5 pb-32">
+        <div className="max-w-xl w-full">
 
           {/* DILG header */}
           <div className="flex items-center justify-center gap-2 mb-4">
@@ -348,22 +377,17 @@ export default function App() {
             <motion.div
               key={sectionId}
               initial={false}
-              animate={{ opacity: 1, x: 0 }}
-              exit={prefersReduced ? undefined : { opacity: 0, x: -24 }}
-              transition={spring}
+              animate={{ opacity: 1, y: 0 }}
+              exit={prefersReduced ? undefined : { opacity: 0, y: -8 }}
+              transition={{ type: 'spring', stiffness: 400, damping: 35 }}
             >
               <StepIndicator currentIndex={sectionIdx} total={total} />
 
-              <Card className="rounded-2xl shadow-sm border border-t-2 border-t-primary">
-                <CardContent className="p-5 md:p-6">
-                  <h2 className="text-lg font-bold text-primary mb-6 pb-3 border-b border-border/50">
+              <Card className="rounded-3xl border border-black/[0.06] bg-white border-t-2 border-t-primary/20 shadow-[0_1px_6px_-1px_rgba(0,25,70,0.12),0_6px_18px_-4px_rgba(0,25,70,0.08)]">
+                <CardContent className="p-6 md:p-8">
+                  <h2 className="text-base font-bold text-primary mb-8">
                     {SECTION_LABELS[sectionId]}
                   </h2>
-                  {sectionError && (
-                    <div className="mb-5 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 px-4 py-3.5 text-sm text-amber-800 dark:text-amber-200" role="alert">
-                      <p className="font-medium">⚠️ {sectionError}</p>
-                    </div>
-                  )}
                   {renderSection()}
                 </CardContent>
               </Card>
@@ -373,39 +397,59 @@ export default function App() {
       </div>
 
       {/* Bottom nav */}
-      <div className="fixed bottom-0 left-0 right-0 z-40 bg-background/80 backdrop-blur-sm border-t">
-        <div className="max-w-lg mx-auto p-4 flex gap-3 items-center">
+      <div className="fixed bottom-0 left-0 right-0 z-40 bg-background/90 backdrop-blur-md border-t border-border/40">
+        <div className="max-w-xl mx-auto p-4 flex gap-3 items-center">
           {sectionIdx > 0 && (
-            <Button variant="outline" onClick={prev} className="flex-1 rounded-xl">
+            <Button variant="outline" onClick={prev} className="flex-1">
               <ChevronLeft className="w-4 h-4" />
               Bumalik
             </Button>
           )}
           {!isLast ? (
-            <Button onClick={next} className="flex-1 rounded-xl">
+            <MotionButton
+              onClick={next}
+              initial="rest"
+              whileHover="hover"
+              className="flex-1"
+            >
               Susunod
-              <ChevronRight className="w-4 h-4" />
-            </Button>
+              <motion.span
+                variants={slideArrowVariants}
+                transition={{ duration: 0.2, ease: 'easeOut' }}
+                className="overflow-hidden flex items-center"
+              >
+                <ArrowRight className="w-4 h-4 shrink-0" />
+              </motion.span>
+            </MotionButton>
           ) : (
-            <Button
-              variant="gold"
+            <MotionButton
+              variant="accent"
               onClick={() => setShowConfirm(true)}
               disabled={submitting}
-              className="flex-1 rounded-xl"
+              initial="rest"
+              whileHover="hover"
+              className="flex-1"
             >
               {submitting ? 'Ipinapadala\u2026' : 'Isumite ang Sarbey'}
-            </Button>
+              <motion.span
+                variants={slideArrowVariants}
+                transition={{ duration: 0.2, ease: 'easeOut' }}
+                className="overflow-hidden flex items-center"
+              >
+                <ArrowRight className="w-4 h-4 shrink-0" />
+              </motion.span>
+            </MotionButton>
           )}
         </div>
       </div>
 
       {/* Confirmation dialog */}
       {showConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-5 bg-black/30 backdrop-blur-sm">
           <motion.div
-            initial={{ scale: 0.9, opacity: 0 }}
+            initial={{ scale: 0.95, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
-            className="bg-card rounded-2xl shadow-xl border border-t-2 border-t-gold max-w-sm w-full p-6 space-y-4"
+            className="bg-card rounded-3xl shadow-xl border border-border/60 max-w-sm w-full p-7 space-y-5"
           >
             <h3 className="font-bold text-lg text-center text-foreground">
               Kumpirmahin ang Sarbey
@@ -417,19 +461,28 @@ export default function App() {
             <div className="flex gap-3 pt-2">
               <Button
                 variant="outline"
-                className="flex-1 rounded-xl"
+                className="flex-1"
                 onClick={() => setShowConfirm(false)}
               >
                 Kanselahin
               </Button>
-              <Button
-                variant="gold"
-                className="flex-1 rounded-xl"
+              <MotionButton
+                variant="accent"
+                className="flex-1"
                 onClick={handleSubmit}
                 disabled={submitting}
+                initial="rest"
+                whileHover="hover"
               >
                 {submitting ? 'Ipinapadala\u2026' : 'Oo, ipadala'}
-              </Button>
+                <motion.span
+                  variants={slideArrowVariants}
+                  transition={{ duration: 0.2, ease: 'easeOut' }}
+                  className="overflow-hidden flex items-center"
+                >
+                  <ArrowRight className="w-4 h-4 shrink-0" />
+                </motion.span>
+              </MotionButton>
             </div>
           </motion.div>
         </div>

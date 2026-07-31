@@ -7,6 +7,12 @@ export const DISCLAIMER = {
     'Kung nais ninyong baguhin ang inyong personal na datos, maaari itong ipaalam sa nakatalagang kawani. ' +
     'Kung mayroon kayong mapapansin sa pagpoproseso ng inyong datos na hindi naaayon sa batas, ' +
     'maaaring ipagbigay alam ito sa DILG Data Protection Officer sa dpo.dilg@gmail.com.',
+  boldPhrases: [
+    'kinakalap ang inyong personal na datos para sa pagsusuring maaaring gawin ng DILG',
+    'itatago sa aming database o sa isang ligtas na locker para sa mga pisikal na form sa loob ng dalawang taon bago tuluyang burahin sa aming talaan',
+    'maaari itong ipaalam sa nakatalagang kawani',
+    'maaaring ipagbigay alam ito sa DILG Data Protection Officer sa dpo.dilg@gmail.com',
+  ],
 };
 
 export const OFFICES = [

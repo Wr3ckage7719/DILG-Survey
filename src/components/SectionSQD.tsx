@@ -9,7 +9,7 @@ interface Props {
 export default function SectionSQD({ form, onChange }: Props) {
   return (
     <div className="space-y-8">
-      <div className="rounded-xl border-l-2 border-l-gold bg-muted/50 px-4 py-3">
+      <div className="rounded-2xl border-l-2 border-l-accent/60 bg-muted/40 px-5 py-3.5">
         <p className="text-xs font-semibold text-muted-foreground tracking-wide uppercase">Panuto</p>
         <p className="text-xs text-muted-foreground/80 italic">
           Lagyan ng tsek (&#10003;) ang hanay na pinakaangkop sa iyong sagot.
