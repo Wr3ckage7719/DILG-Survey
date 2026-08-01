@@ -16,9 +16,9 @@ export interface FormData {
   emailAddress: string;
 }
 
-export type SectionId = 'office' | 'demographics' | 'cc' | 'sqd' | 'feedback' | 'review';
+export type SectionId = 'office' | 'demographics' | 'cc' | 'sqd' | 'feedback';
 
-export const SECTIONS: SectionId[] = ['office', 'demographics', 'cc', 'sqd', 'feedback', 'review'];
+export const SECTIONS: SectionId[] = ['office', 'demographics', 'cc', 'sqd', 'feedback'];
 
 export const SECTION_LABELS: Record<SectionId, string> = {
   office: '1. Detalye ng Tanggapan',
@@ -26,7 +26,6 @@ export const SECTION_LABELS: Record<SectionId, string> = {
   cc: '3. Gabay ng Mamamayan',
   sqd: '4. Kalidad ng Serbisyo',
   feedback: '5. Puná at Impormasyon',
-  review: '6. Kumpirmahin ang Sarbey',
 };
 
 export const INITIAL_FORM: FormData = {

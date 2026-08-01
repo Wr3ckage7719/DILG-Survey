@@ -2,7 +2,6 @@ import { cn } from '@/lib/utils';
 import type { FormData } from '../types';
 import { CC1_OPTIONS, CC2_OPTIONS, CC3_OPTIONS } from '../data/questions';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Check } from 'lucide-react';
 
 interface Props {
   num: 1 | 2 | 3;
@@ -53,9 +52,6 @@ export default function StepCC({ num, form, onChange, errors }: Props) {
           >
               <RadioGroupItem value={o} className="mt-0.5 pointer-events-none" />
               <span className="text-sm flex-1 leading-relaxed">{o}</span>
-              {isSelected && (
-                <Check className="mt-0.5 h-4 w-4 shrink-0 text-accent" absoluteStrokeWidth />
-              )}
             </div>
           );
         })}

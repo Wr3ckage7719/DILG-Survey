@@ -1,7 +1,6 @@
 import type { FormData } from '../types';
 import { SQD_LABELS, SQD_OPTIONS } from '../data/questions';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface Props {
@@ -44,9 +43,6 @@ export default function StepSQD({ index, form, onChange }: Props) {
           >
               <RadioGroupItem value={opt} className="pointer-events-none" />
               <span className="text-sm flex-1 leading-relaxed">{opt}</span>
-              {isSelected && (
-                <Check className="h-4 w-4 shrink-0 text-accent" absoluteStrokeWidth />
-              )}
             </div>
           );
         })}

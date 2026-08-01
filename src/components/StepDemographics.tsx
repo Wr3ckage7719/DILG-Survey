@@ -1,7 +1,6 @@
 import type { FormData } from '../types';
 import { KLIYENTE, EDAD, KASARIAN, REGION_GROUPS } from '../data/questions';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Check } from 'lucide-react';
 import {
   Select,
   SelectContent,
@@ -95,9 +94,6 @@ function RadioGroupBlock(props: {
         >
             <RadioGroupItem value={o} className="pointer-events-none" />
             <span className="text-sm flex-1 leading-relaxed">{o}</span>
-            {isSelected(o) && (
-              <Check className="h-4 w-4 shrink-0 text-accent" absoluteStrokeWidth />
-            )}
           </div>
         ))}
       </RadioGroup>

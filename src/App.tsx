@@ -26,7 +26,6 @@ import SectionCC from './components/SectionCC';
 import SectionSQD from './components/SectionSQD';
 import SectionFeedback from './components/SectionFeedback';
 import StepIndicator from './components/StepIndicator';
-import StepReview from './components/StepReview';
 
 const spring = { type: 'spring' as const, stiffness: 300, damping: 30 };
 
@@ -46,13 +45,12 @@ function renderBoldText(text: string, boldPhrases: string[]) {
   );
 }
 
-const REQUIRED_FIELDS: Record<string, (keyof FormData)[]> = {
+  const REQUIRED_FIELDS: Record<string, (keyof FormData)[]> = {
   office: ['pangalanNgTanggapan', 'serbisyongIbinigay'],
   demographics: ['uriNgKliyente', 'edad', 'kasarian', 'rehiyon'],
   cc: ['cc1', 'cc2', 'cc3'],
   sqd: [],
   feedback: [],
-  review: [],
 };
 
 function validate(sectionId: string, form: FormData): string[] {
@@ -82,7 +80,7 @@ export default function App() {
   const [showDisclaimer, setShowDisclaimer] = useState(true);
   const [consentChecked, setConsentChecked] = useState(false);
   const [errors, setErrors] = useState<Record<string, boolean>>({});
-  const [showConfirm, setShowConfirm] = useState(false);
+  const [shaking, setShaking] = useState(false);
   const [refNumber, setRefNumber] = useState<string>('');
   const [privacyExpanded, setPrivacyExpanded] = useState(false);
   const honeypotRef = useRef<HTMLInputElement>(null);
@@ -115,6 +113,8 @@ export default function App() {
       const errorMap: Record<string, boolean> = {};
       errorKeys.forEach((key) => { errorMap[key] = true; });
       setErrors(errorMap);
+      setShaking(true);
+      setTimeout(() => setShaking(false), 400);
       scrollToFirstError(errorKeys);
       return;
     }
@@ -126,14 +126,6 @@ export default function App() {
   const prev = () => {
     setSectionIdx((s) => s - 1);
     window.scrollTo(0, 0);
-  };
-
-  const confirmSubmit = () => {
-    if (sectionId === 'review') {
-      setShowConfirm(true);
-    } else {
-      handleSubmit();
-    }
   };
 
   const handleSubmit = async () => {
@@ -161,7 +153,6 @@ export default function App() {
     }
 
     setErrors({});
-    setShowConfirm(false);
     setSubmitting(true);
 
     // Generate reference number for audit trail
@@ -191,9 +182,6 @@ export default function App() {
           onChange={update}
           honeypotRef={honeypotRef}
         />
-      );
-      case 'review': return (
-        <StepReview form={form} />
       );
     }
   };
@@ -376,14 +364,17 @@ export default function App() {
           <AnimatePresence mode="wait">
             <motion.div
               key={sectionId}
-              initial={false}
+              initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
               exit={prefersReduced ? undefined : { opacity: 0, y: -8 }}
               transition={{ type: 'spring', stiffness: 400, damping: 35 }}
             >
               <StepIndicator currentIndex={sectionIdx} total={total} />
 
-              <Card className="rounded-3xl border border-black/[0.06] bg-white border-t-2 border-t-primary/20 shadow-[0_1px_6px_-1px_rgba(0,25,70,0.12),0_6px_18px_-4px_rgba(0,25,70,0.08)]">
+              <Card className={cn(
+                "rounded-3xl border border-black/[0.06] bg-white border-t-2 border-t-primary/20 shadow-[0_1px_6px_-1px_rgba(0,25,70,0.12),0_6px_18px_-4px_rgba(0,25,70,0.08)]",
+                shaking && "animate-shake"
+              )}>
                 <CardContent className="p-6 md:p-8">
                   <h2 className="text-base font-bold text-primary mb-8">
                     {SECTION_LABELS[sectionId]}
@@ -424,7 +415,7 @@ export default function App() {
           ) : (
             <MotionButton
               variant="accent"
-              onClick={() => setShowConfirm(true)}
+              onClick={handleSubmit}
               disabled={submitting}
               initial="rest"
               whileHover="hover"
@@ -442,51 +433,6 @@ export default function App() {
           )}
         </div>
       </div>
-
-      {/* Confirmation dialog */}
-      {showConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-5 bg-black/30 backdrop-blur-sm">
-          <motion.div
-            initial={{ scale: 0.95, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            className="bg-card rounded-3xl shadow-xl border border-border/60 max-w-sm w-full p-7 space-y-5"
-          >
-            <h3 className="font-bold text-lg text-center text-foreground">
-              Kumpirmahin ang Sarbey
-            </h3>
-            <p className="text-sm text-muted-foreground text-center leading-relaxed">
-              Nais mo bang ipadala ang iyong mga tugon? Pakisiguraduhing tama ang lahat ng
-              iyong sagot bago magpatuloy.
-            </p>
-            <div className="flex gap-3 pt-2">
-              <Button
-                variant="outline"
-                className="flex-1"
-                onClick={() => setShowConfirm(false)}
-              >
-                Kanselahin
-              </Button>
-              <MotionButton
-                variant="accent"
-                className="flex-1"
-                onClick={handleSubmit}
-                disabled={submitting}
-                initial="rest"
-                whileHover="hover"
-              >
-                {submitting ? 'Ipinapadala\u2026' : 'Oo, ipadala'}
-                <motion.span
-                  variants={slideArrowVariants}
-                  transition={{ duration: 0.2, ease: 'easeOut' }}
-                  className="overflow-hidden flex items-center"
-                >
-                  <ArrowRight className="w-4 h-4 shrink-0" />
-                </motion.span>
-              </MotionButton>
-            </div>
-          </motion.div>
-        </div>
-      )}
 
       <Toaster position="top-center" />
     </div>
