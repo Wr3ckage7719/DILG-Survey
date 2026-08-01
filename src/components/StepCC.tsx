@@ -44,9 +44,9 @@ export default function StepCC({ num, form, onChange, errors }: Props) {
             key={i}
             onClick={() => onChange({ [key]: o } as Partial<FormData>)}
             className={cn(
-              'flex items-start gap-3.5 rounded-2xl border px-5 py-3.5 cursor-pointer transition-all duration-200 text-[15px]',
+              'flex items-start gap-3.5 rounded-2xl border px-5 py-3.5 cursor-pointer transition-colors duration-200 text-[15px]',
               isSelected
-                ? 'border-l-[3px] border-l-accent border-accent/20 bg-accent/[0.04] font-medium'
+                ? 'border-accent/20 bg-accent/[0.04] font-medium'
                 : 'border-border/80 bg-card hover:bg-accent/5 hover:border-border',
             )}
           >

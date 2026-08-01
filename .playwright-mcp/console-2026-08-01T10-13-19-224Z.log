@@ -1,0 +1,2 @@
+[     104ms] [ERROR] X-Frame-Options may only be set via an HTTP header sent along with a document. It may not be set inside <meta>. @ http://localhost:5199/:34
+[    2280ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ http://localhost:5199/node_modules/.vite/deps/chunk-MEDN2HEO.js?v=2cb942c5:21608

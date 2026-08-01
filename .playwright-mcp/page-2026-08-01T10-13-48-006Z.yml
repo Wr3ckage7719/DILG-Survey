@@ -1,0 +1,39 @@
+- generic [ref=e3]:
+  - generic [ref=e21]:
+    - generic [ref=e22]:
+      - img "DILG Logo" [ref=e23]
+      - generic [ref=e24]: DILG Client Satisfaction Survey
+    - generic [ref=e25]:
+      - generic [ref=e27]:
+        - generic [ref=e28]: Tanggapan
+        - generic [ref=e38]: Demo
+        - generic [ref=e49]: CC
+        - generic [ref=e58]: Kalidad
+        - generic [ref=e66]: Puná
+      - generic [ref=e73]:
+        - heading "1. Detalye ng Tanggapan" [level=2] [ref=e74]
+        - generic [ref=e75]:
+          - group [ref=e76]:
+            - generic [ref=e77]: Pangalan ng tanggapan / operating unit*
+            - radiogroup [ref=e78]:
+              - generic [ref=e79] [cursor=pointer]:
+                - radio "DILG Camarines Norte (Records)" [ref=e80]
+                - generic [ref=e81]: DILG Camarines Norte (Records)
+              - generic [ref=e82] [cursor=pointer]:
+                - radio "Local Government Monitoring and Evaluation Section (LGMES)" [ref=e83]
+                - generic [ref=e84]: Local Government Monitoring and Evaluation Section (LGMES)
+              - generic [ref=e85] [cursor=pointer]:
+                - radio "Local Government Capability and Development Section (LGCDS)" [ref=e86]
+                - generic [ref=e87]: Local Government Capability and Development Section (LGCDS)
+              - generic [ref=e88] [cursor=pointer]:
+                - radio "Project Development and Monitoring Unit (PDMU)" [ref=e89]
+                - generic [ref=e90]: Project Development and Monitoring Unit (PDMU)
+              - generic [ref=e91] [cursor=pointer]:
+                - radio "Finance and Administrative Section (FAS)" [ref=e92]
+                - generic [ref=e93]: Finance and Administrative Section (FAS)
+          - group [ref=e94]:
+            - generic [ref=e95]: Serbisyong ibinigay*
+            - combobox [ref=e96] [cursor=pointer]:
+              - generic: — Pumili —
+  - button "Susunod" [ref=e101] [cursor=pointer]
+  - region "Notifications alt+T"

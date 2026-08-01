@@ -19,7 +19,6 @@ import { Toaster } from '@/components/ui/sonner';
 import { cn } from '@/lib/utils';
 
 import { DotLottiePlayer } from '@dotlottie/react-player';
-import LogoSrc from './Logo.png';
 import StepOffice from './components/StepOffice';
 import StepDemographics from './components/StepDemographics';
 import SectionCC from './components/SectionCC';
@@ -166,6 +165,7 @@ export default function App() {
       setSubmitted(true);
       toast.success('Naipadala ang inyong sarbey!');
     } else {
+      navigator.vibrate?.([120, 60, 120]);
       toast.error(result.error || 'Hindi nakapag-submit. Pakisubukan muli.');
     }
   };
@@ -349,16 +349,12 @@ export default function App() {
         <div className="max-w-xl w-full">
 
           {/* DILG header */}
-          <div className="flex items-center justify-center gap-2 mb-4">
+          <div className="flex items-center justify-center mt-5 mb-7">
             <img
-              src={LogoSrc}
+              src="/logo-2.png"
               alt="DILG Logo"
-              className="h-7 object-contain"
+              className="h-12 object-contain"
             />
-            <div className="text-[10px] text-muted-foreground tracking-wide uppercase leading-tight">
-              <span className="font-semibold text-primary/80">DILG</span>{' '}
-              Client Satisfaction Survey
-            </div>
           </div>
 
           <AnimatePresence mode="wait">

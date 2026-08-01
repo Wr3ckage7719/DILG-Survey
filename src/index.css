@@ -93,6 +93,19 @@
     #ffffff;
 }
 
+/* Minimal red error toast — rounder, red-tinted, subtle but visible */
+[data-sonner-toast][data-type="error"] {
+  border-radius: 1.25rem !important;
+  background: hsl(var(--destructive) / 0.6) !important;
+  border-color: hsl(var(--destructive) / 0.55) !important;
+  color: #ffffff !important;
+  box-shadow: 0 8px 24px -10px hsl(var(--destructive) / 0.35) !important;
+}
+
+[data-sonner-toast][data-type="error"] svg {
+  color: #ffffff !important;
+}
+
 @keyframes shake {
   0%, 100% { transform: translateX(0); }
   20%, 60% { transform: translateX(-4px); }

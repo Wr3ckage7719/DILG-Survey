@@ -1,0 +1,10 @@
+- generic [ref=e4]:
+  - img "DILG Logo" [ref=e5]
+  - paragraph [ref=e6]: FM-SP-DILG-07-07B
+  - heading "CLIENT SATISFACTION SURVEY (ON-SITE)" [level=1] [ref=e7]
+  - img "Animation" [ref=e8]
+  - button "Pakibasa ang Data Privacy Notice at ibigay ang iyong pahintulot." [ref=e10] [cursor=pointer]
+  - generic [ref=e14] [cursor=pointer]:
+    - checkbox "Nabasa ko na ang Data Privacy Notice at nagbibigay ako ng aking pahintulot." [checked] [active] [ref=e15]
+    - generic [ref=e16]: Nabasa ko na ang Data Privacy Notice at nagbibigay ako ng aking pahintulot.
+  - button "MAGPATULOY" [ref=e18] [cursor=pointer]

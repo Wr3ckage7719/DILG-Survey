@@ -1,0 +1,42 @@
+[     100ms] [ERROR] X-Frame-Options may only be set via an HTTP header sent along with a document. It may not be set inside <meta>. @ http://localhost:5199/:34
+[     280ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ http://localhost:5199/node_modules/.vite/deps/chunk-MEDN2HEO.js?v=2cb942c5:21608
+[  143538ms] [ERROR] X-Frame-Options may only be set via an HTTP header sent along with a document. It may not be set inside <meta>. @ http://localhost:5199/:34
+[  146399ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ http://localhost:5199/node_modules/.vite/deps/chunk-MEDN2HEO.js?v=2cb942c5:21608
+[  228893ms] [ERROR] X-Frame-Options may only be set via an HTTP header sent along with a document. It may not be set inside <meta>. @ http://localhost:5199/:34
+[  230577ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ http://localhost:5199/node_modules/.vite/deps/chunk-MEDN2HEO.js?v=2cb942c5:21608
+[  304372ms] [ERROR] X-Frame-Options may only be set via an HTTP header sent along with a document. It may not be set inside <meta>. @ http://localhost:5199/:34
+[  306487ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ http://localhost:5199/node_modules/.vite/deps/chunk-MEDN2HEO.js?v=2cb942c5:21608
+[  375507ms] [ERROR] X-Frame-Options may only be set via an HTTP header sent along with a document. It may not be set inside <meta>. @ http://localhost:5199/:34
+[  376650ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ http://localhost:5199/node_modules/.vite/deps/chunk-MEDN2HEO.js?v=2cb942c5:21608
+[  991989ms] [ERROR] X-Frame-Options may only be set via an HTTP header sent along with a document. It may not be set inside <meta>. @ http://localhost:5199/:34
+[  992434ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ http://localhost:5199/node_modules/.vite/deps/chunk-MEDN2HEO.js?v=2cb942c5:21608
+[ 1293730ms] [ERROR] X-Frame-Options may only be set via an HTTP header sent along with a document. It may not be set inside <meta>. @ http://localhost:5199/:34
+[ 1294196ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ http://localhost:5199/node_modules/.vite/deps/chunk-MEDN2HEO.js?v=2cb942c5:21608
+[ 1381960ms] [ERROR] X-Frame-Options may only be set via an HTTP header sent along with a document. It may not be set inside <meta>. @ http://localhost:5199/:34
+[ 1382295ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ http://localhost:5199/node_modules/.vite/deps/chunk-MEDN2HEO.js?v=2cb942c5:21608
+[ 1417435ms] [ERROR] X-Frame-Options may only be set via an HTTP header sent along with a document. It may not be set inside <meta>. @ http://localhost:5199/:34
+[ 1418151ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ http://localhost:5199/node_modules/.vite/deps/chunk-MEDN2HEO.js?v=2cb942c5:21608
+[ 1439698ms] [ERROR] Failed to load resource: net::ERR_FAILED @ http://localhost:5199/api/submit:0
+[ 1439698ms] [ERROR] Submit failed: TypeError: Failed to fetch
+    at submitSurvey (http://localhost:5199/src/api/submit.ts:41:23)
+    at handleSubmit (http://localhost:5199/src/App.tsx?t=1785580817942:162:26)
+    at HTMLUnknownElement.callCallback2 (http://localhost:5199/node_modules/.vite/deps/chunk-MEDN2HEO.js?v=2cb942c5:3680:22)
+    at Object.invokeGuardedCallbackDev (http://localhost:5199/node_modules/.vite/deps/chunk-MEDN2HEO.js?v=2cb942c5:3705:24)
+    at invokeGuardedCallback (http://localhost:5199/node_modules/.vite/deps/chunk-MEDN2HEO.js?v=2cb942c5:3739:39)
+    at invokeGuardedCallbackAndCatchFirstError (http://localhost:5199/node_modules/.vite/deps/chunk-MEDN2HEO.js?v=2cb942c5:3742:33)
+    at executeDispatch (http://localhost:5199/node_modules/.vite/deps/chunk-MEDN2HEO.js?v=2cb942c5:7046:11)
+    at processDispatchQueueItemsInOrder (http://localhost:5199/node_modules/.vite/deps/chunk-MEDN2HEO.js?v=2cb942c5:7066:15)
+    at processDispatchQueue (http://localhost:5199/node_modules/.vite/deps/chunk-MEDN2HEO.js?v=2cb942c5:7075:13)
+    at dispatchEventsForPlugins (http://localhost:5199/node_modules/.vite/deps/chunk-MEDN2HEO.js?v=2cb942c5:7083:11) @ http://localhost:5199/src/api/submit.ts:48
+[ 1481548ms] [ERROR] Failed to load resource: net::ERR_FAILED @ http://localhost:5199/api/submit:0
+[ 1481548ms] [ERROR] Submit failed: TypeError: Failed to fetch
+    at submitSurvey (http://localhost:5199/src/api/submit.ts:41:23)
+    at handleSubmit (http://localhost:5199/src/App.tsx?t=1785580817942:162:26)
+    at HTMLUnknownElement.callCallback2 (http://localhost:5199/node_modules/.vite/deps/chunk-MEDN2HEO.js?v=2cb942c5:3680:22)
+    at Object.invokeGuardedCallbackDev (http://localhost:5199/node_modules/.vite/deps/chunk-MEDN2HEO.js?v=2cb942c5:3705:24)
+    at invokeGuardedCallback (http://localhost:5199/node_modules/.vite/deps/chunk-MEDN2HEO.js?v=2cb942c5:3739:39)
+    at invokeGuardedCallbackAndCatchFirstError (http://localhost:5199/node_modules/.vite/deps/chunk-MEDN2HEO.js?v=2cb942c5:3742:33)
+    at executeDispatch (http://localhost:5199/node_modules/.vite/deps/chunk-MEDN2HEO.js?v=2cb942c5:7046:11)
+    at processDispatchQueueItemsInOrder (http://localhost:5199/node_modules/.vite/deps/chunk-MEDN2HEO.js?v=2cb942c5:7066:15)
+    at processDispatchQueue (http://localhost:5199/node_modules/.vite/deps/chunk-MEDN2HEO.js?v=2cb942c5:7075:13)
+    at dispatchEventsForPlugins (http://localhost:5199/node_modules/.vite/deps/chunk-MEDN2HEO.js?v=2cb942c5:7083:11) @ http://localhost:5199/src/api/submit.ts:48

@@ -38,9 +38,9 @@ export default function StepOffice({ form, onChange, errors }: Props) {
             <label
               key={o}
               className={cn(
-                'flex cursor-pointer items-center gap-3.5 rounded-2xl border px-5 py-3.5 text-[15px] transition-all duration-200',
+                'flex cursor-pointer items-center gap-3.5 rounded-2xl border px-5 py-3.5 text-[15px] transition-colors duration-200',
                 form.pangalanNgTanggapan === o
-                  ? 'border-l-[3px] border-l-accent border-accent/20 bg-accent/[0.04] font-semibold text-accent'
+                  ? 'border-accent/20 bg-accent/[0.04] font-semibold text-accent'
                   : 'border-border/80 bg-card hover:bg-accent/5 hover:border-border',
               )}
             >
