@@ -1,4 +1,5 @@
 import type { FormData, Language } from '../types';
+import type { TranslationKey } from '../i18n/translations';
 import { translations } from '../i18n/translations';
 
 // Always posts to /api/submit — in dev this is proxied by Vite, in production by Vercel.
@@ -50,6 +51,30 @@ export function isHoneypotFilled(value: string): boolean {
   return value.trim().length > 0;
 }
 
+/* ─── Map server error codes → localized messages ─── */
+function mapServerError(
+  json: { ok?: boolean; error?: string; retryIn?: number },
+  dict: Record<TranslationKey, string>,
+): string {
+  switch (json?.error) {
+    case 'rate_limit':
+      return dict['error.rateLimit'].replace('{seconds}', String(json.retryIn ?? 15));
+    case 'invalid_email':
+      return dict['validation.email'];
+    case 'invalid_phone':
+      return dict['validation.phone'];
+    case 'missing_field':
+    case 'invalid_sqd':
+    case 'invalid_json':
+    case 'invalid_body':
+    case 'method_not_allowed':
+    case 'server_config_error':
+    case 'submit_failed':
+    default:
+      return dict['toast.failed'];
+  }
+}
+
 /* ─── Main submit ─── */
 export async function submitSurvey(
   data: FormData,
@@ -62,10 +87,11 @@ export async function submitSurvey(
   const now = Date.now();
   if (now - lastSubmitTime < SUBMIT_COOLDOWN_MS) {
     const remaining = Math.ceil((SUBMIT_COOLDOWN_MS - (now - lastSubmitTime)) / 1000);
-    const msg = lang === 'en'
-      ? `Too fast. Please wait ${remaining} second${remaining === 1 ? '' : 's'}.`
-      : `Masyadong mabilis. Pakihintay ng ${remaining} segundo.`;
-    return { ok: false, refNumber, error: msg };
+    return {
+      ok: false,
+      refNumber,
+      error: dict['error.rateLimit'].replace('{seconds}', String(remaining)),
+    };
   }
   lastSubmitTime = now;
 
@@ -75,10 +101,13 @@ export async function submitSurvey(
     const res = await fetch('/api/submit', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...sanitized, refNumber }),
+      body: JSON.stringify({ ...sanitized, refNumber, lang }),
     });
 
     const json = await res.json();
+    if (!json.ok && json.error) {
+      return { ok: false, refNumber, error: mapServerError(json, dict) };
+    }
     return json;
   } catch (e) {
     console.error('Submit failed:', e);

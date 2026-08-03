@@ -30,6 +30,7 @@ const tl = {
   'toast.failed': 'Hindi nakapag-submit. Pakisubukan muli.',
   'validation.email': 'Hindi valid ang email address.',
   'validation.phone': 'Hindi valid ang contact number.',
+  'error.rateLimit': 'Masyadong mabilis. Pakihintay ng {seconds} segundo.',
 
   // Thank-you screen
   'done.title': 'Maraming Salamat!',
@@ -118,6 +119,7 @@ const en: Record<TranslationKey, string> = {
   'toast.failed': 'Unable to submit. Please try again.',
   'validation.email': 'Invalid email address.',
   'validation.phone': 'Invalid contact number.',
+  'error.rateLimit': 'Too fast. Please wait {seconds} seconds.',
 
   // Thank-you screen
   'done.title': 'Thank you!',

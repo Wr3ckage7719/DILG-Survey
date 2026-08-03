@@ -18,6 +18,25 @@ interface FormData {
   contactNumber: string;
   emailAddress: string;
   refNumber: string;
+  lang?: string;
+}
+
+/* ─── Error codes (localized client-side) ─── */
+type ErrorCode =
+  | 'method_not_allowed'
+  | 'invalid_body'
+  | 'invalid_json'
+  | 'server_config_error'
+  | 'rate_limit'
+  | 'missing_field'
+  | 'invalid_sqd'
+  | 'invalid_email'
+  | 'invalid_phone'
+  | 'submit_failed';
+
+function sendError(res: ServerResponse, status: number, error: ErrorCode, extra?: Record<string, unknown>): void {
+  res.writeHead(status, { 'Content-Type': 'application/json' });
+  res.end(JSON.stringify({ ok: false, error, ...extra }));
 }
 
 /* ─── Config ─── */
@@ -68,16 +87,14 @@ export default async function handler(
 
   // Only POST allowed
   if (req.method !== 'POST') {
-    res.writeHead(405, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ ok: false, error: 'Method not allowed' }));
+    sendError(res, 405, 'method_not_allowed');
     return;
   }
 
   // Verify Apps Script URL is configured
   if (!APPS_SCRIPT_URL) {
     console.error('APPS_SCRIPT_URL environment variable is not set');
-    res.writeHead(500, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ ok: false, error: 'Server configuration error' }));
+    sendError(res, 500, 'server_config_error');
     return;
   }
 
@@ -88,8 +105,7 @@ export default async function handler(
       bodyStr += chunk;
     }
   } catch {
-    res.writeHead(400, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ ok: false, error: 'Invalid request body' }));
+    sendError(res, 400, 'invalid_body');
     return;
   }
 
@@ -97,8 +113,7 @@ export default async function handler(
   try {
     data = JSON.parse(bodyStr);
   } catch {
-    res.writeHead(400, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ ok: false, error: 'Invalid JSON' }));
+    sendError(res, 400, 'invalid_json');
     return;
   }
 
@@ -111,13 +126,7 @@ export default async function handler(
   const lastHit = rateLimitMap.get(ip);
   if (lastHit && now - lastHit < SUBMIT_COOLDOWN_MS) {
     const remaining = Math.ceil((SUBMIT_COOLDOWN_MS - (now - lastHit)) / 1000);
-    res.writeHead(429, { 'Content-Type': 'application/json' });
-    res.end(
-      JSON.stringify({
-        ok: false,
-        error: `Masyadong mabilis. Pakihintay ng ${remaining} segundo.`,
-      }),
-    );
+    sendError(res, 429, 'rate_limit', { retryIn: remaining });
     return;
   }
   rateLimitMap.set(ip, now);
@@ -146,28 +155,24 @@ export default async function handler(
   for (const field of required) {
     const val = data[field];
     if (!val || (typeof val === 'string' && val.trim() === '')) {
-      res.writeHead(400, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ ok: false, error: `Missing required field: ${field}` }));
+      sendError(res, 400, 'missing_field', { field });
       return;
     }
   }
 
   // Validate SQD array
   if (!Array.isArray(data.sqd) || data.sqd.length !== 9) {
-    res.writeHead(400, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ ok: false, error: 'Invalid SQD data' }));
+    sendError(res, 400, 'invalid_sqd');
     return;
   }
 
   // ─── Validate email/phone ───
   if (!validateEmail(data.emailAddress)) {
-    res.writeHead(400, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ ok: false, error: 'Hindi valid ang email address.' }));
+    sendError(res, 400, 'invalid_email');
     return;
   }
   if (!validatePhone(data.contactNumber)) {
-    res.writeHead(400, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ ok: false, error: 'Hindi valid ang contact number.' }));
+    sendError(res, 400, 'invalid_phone');
     return;
   }
 
@@ -191,10 +196,7 @@ export default async function handler(
 
     if (!response.ok) {
       console.error('Apps Script returned:', response.status);
-      res.writeHead(502, { 'Content-Type': 'application/json' });
-      res.end(
-        JSON.stringify({ ok: false, error: 'Hindi makapag-submit. Pakisubukan muli.' }),
-      );
+      sendError(res, 502, 'submit_failed');
       return;
     }
 
@@ -207,9 +209,6 @@ export default async function handler(
     );
   } catch (err) {
     console.error('Forward to Apps Script failed:', err);
-    res.writeHead(502, { 'Content-Type': 'application/json' });
-    res.end(
-      JSON.stringify({ ok: false, error: 'Hindi makapag-submit. Pakisubukan muli.' }),
-    );
+    sendError(res, 502, 'submit_failed');
   }
 }
