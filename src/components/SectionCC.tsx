@@ -1,5 +1,6 @@
 import type { FormData } from '../types';
 import StepCC from './StepCC';
+import { useLang } from '../i18n/LanguageContext';
 
 interface Props {
   form: FormData;
@@ -8,14 +9,13 @@ interface Props {
 }
 
 export default function SectionCC({ form, onChange, errors }: Props) {
+  const { t } = useLang();
   return (
     <div className="space-y-8">
       <div className="space-y-2 rounded-2xl bg-muted/40 px-5 py-3.5">
-        <p className="text-xs font-semibold text-muted-foreground tracking-wide uppercase">Gabay ng Mamamayan ng DILG</p>
+        <p className="text-xs font-semibold text-muted-foreground tracking-wide uppercase">{t('cc.bannerTitle')}</p>
         <p className="text-xs text-muted-foreground/80 italic leading-relaxed">
-          Panuto: Ang Gabay ng Mamamayan ay isang dokumento na nagpapakita ng mga serbisyo
-          ng isang tanggapan ng pamahalaan at mga kaakibat nitong kahilingan, babayaran, at
-          tagal ng pagpoproseso.
+          {t('cc.bannerText')}
         </p>
       </div>
       <StepCC num={1} form={form} onChange={onChange} errors={errors} />

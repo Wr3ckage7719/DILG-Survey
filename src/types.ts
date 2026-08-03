@@ -18,14 +18,25 @@ export interface FormData {
 
 export type SectionId = 'office' | 'demographics' | 'cc' | 'sqd' | 'feedback';
 
+export type Language = 'tl' | 'en';
+
 export const SECTIONS: SectionId[] = ['office', 'demographics', 'cc', 'sqd', 'feedback'];
 
-export const SECTION_LABELS: Record<SectionId, string> = {
-  office: '1. Detalye ng Tanggapan',
-  demographics: '2. Demograpiko',
-  cc: '3. Gabay ng Mamamayan',
-  sqd: '4. Kalidad ng Serbisyo',
-  feedback: '5. Puná at Impormasyon',
+export const SECTION_LABELS: Record<Language, Record<SectionId, string>> = {
+  tl: {
+    office: '1. Detalye ng Tanggapan',
+    demographics: '2. Demograpiko',
+    cc: '3. Gabay ng Mamamayan',
+    sqd: '4. Kalidad ng Serbisyo',
+    feedback: '5. Puná at Impormasyon',
+  },
+  en: {
+    office: '1. Office Details',
+    demographics: '2. Demographics',
+    cc: '3. Citizen\u2019s Charter',
+    sqd: '4. Service Quality',
+    feedback: '5. Feedback and Information',
+  },
 };
 
 export const INITIAL_FORM: FormData = {

@@ -1,4 +1,5 @@
 import type { FormData } from '../types';
+import { useLang } from '../i18n/LanguageContext';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Separator } from '@/components/ui/separator';
@@ -10,6 +11,7 @@ interface Props {
 }
 
 export default function SectionFeedback({ form, onChange, honeypotRef }: Props) {
+  const { t } = useLang();
   return (
     <div className="space-y-7">
       {/* ─── Honeypot: invisible to humans, traps bots ─── */}
@@ -27,12 +29,12 @@ export default function SectionFeedback({ form, onChange, honeypotRef }: Props) 
       </div>
 
       <div className="space-y-4">
-        <h3 className="text-base font-bold text-primary">Mga mungkahi</h3>
+        <h3 className="text-base font-bold text-primary">{t('feedback.suggestions')}</h3>
         <p className="text-[15px] text-muted-foreground">
-          Paano pa mapapabuti ang aming serbisyo?
+          {t('feedback.suggestionsPrompt')}
         </p>
         <Textarea
-          placeholder="Isulat ang inyong mungkahi..."
+          placeholder={t('feedback.suggestionsPlaceholder')}
           value={form.mgaMungkahi}
           onChange={(e) => onChange({ mgaMungkahi: e.target.value })}
           className="min-h-[140px] rounded-xl resize-none"
@@ -47,38 +49,38 @@ export default function SectionFeedback({ form, onChange, honeypotRef }: Props) 
 
       <div className="space-y-4">
         <div className="space-y-1.5">
-          <h3 className="text-base font-bold text-primary">Impormasyon ng Kliyente</h3>
-          <p className="text-xs text-muted-foreground">Hindi required. Punan lamang kung nais mong makontak ka namin.</p>
+          <h3 className="text-base font-bold text-primary">{t('feedback.clientInfo')}</h3>
+          <p className="text-xs text-muted-foreground">{t('feedback.clientInfoHint')}</p>
         </div>
 
         <fieldset className="space-y-2">
-          <label className="text-[15px] font-semibold text-foreground">Pangalan (optional)</label>
+          <label className="text-[15px] font-semibold text-foreground">{t('feedback.nameLabel')}</label>
           <Input
             value={form.pangalan}
             onChange={(e) => onChange({ pangalan: e.target.value })}
-            placeholder="Pangalan"
+            placeholder={t('feedback.namePlaceholder')}
             className="rounded-xl"
             maxLength={100}
           />
         </fieldset>
         <fieldset className="space-y-2">
-          <label className="text-[15px] font-semibold text-foreground">Contact number</label>
+          <label className="text-[15px] font-semibold text-foreground">{t('feedback.contactLabel')}</label>
           <Input
             value={form.contactNumber}
             onChange={(e) => onChange({ contactNumber: e.target.value })}
-            placeholder="0917 123 4567"
+            placeholder={t('feedback.contactPlaceholder')}
             className="rounded-xl"
             maxLength={20}
             inputMode="tel"
           />
         </fieldset>
         <fieldset className="space-y-2">
-          <label className="text-[15px] font-semibold text-foreground">Email address</label>
+          <label className="text-[15px] font-semibold text-foreground">{t('feedback.emailLabel')}</label>
           <Input
             type="email"
             value={form.emailAddress}
             onChange={(e) => onChange({ emailAddress: e.target.value })}
-            placeholder="email@example.com"
+            placeholder={t('feedback.emailPlaceholder')}
             className="rounded-xl"
             maxLength={200}
             inputMode="email"

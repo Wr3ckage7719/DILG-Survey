@@ -1,4 +1,5 @@
-import type { FormData } from '../types';
+import type { FormData, Language } from '../types';
+import { translations } from '../i18n/translations';
 
 // Always posts to /api/submit — in dev this is proxied by Vite, in production by Vercel.
 // The Google Apps Script URL is NEVER exposed to the browser.
@@ -53,12 +54,18 @@ export function isHoneypotFilled(value: string): boolean {
 export async function submitSurvey(
   data: FormData,
   refNumber: string,
+  lang: Language = 'tl',
 ): Promise<{ ok: boolean; refNumber: string; error?: string }> {
+  const dict = translations[lang];
+
   // Client-side rate limiting
   const now = Date.now();
   if (now - lastSubmitTime < SUBMIT_COOLDOWN_MS) {
     const remaining = Math.ceil((SUBMIT_COOLDOWN_MS - (now - lastSubmitTime)) / 1000);
-    return { ok: false, refNumber, error: `Masyadong mabilis. Pakihintay ng ${remaining} segundo.` };
+    const msg = lang === 'en'
+      ? `Too fast. Please wait ${remaining} second${remaining === 1 ? '' : 's'}.`
+      : `Masyadong mabilis. Pakihintay ng ${remaining} segundo.`;
+    return { ok: false, refNumber, error: msg };
   }
   lastSubmitTime = now;
 
@@ -75,7 +82,7 @@ export async function submitSurvey(
     return json;
   } catch (e) {
     console.error('Submit failed:', e);
-    return { ok: false, refNumber, error: 'Hindi makapag-submit. Pakisubukan muli.' };
+    return { ok: false, refNumber, error: dict['toast.failed'] };
   }
 }
   

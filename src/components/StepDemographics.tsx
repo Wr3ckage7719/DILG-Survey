@@ -1,5 +1,6 @@
 import type { FormData } from '../types';
-import { KLIYENTE, EDAD, KASARIAN, REGION_GROUPS } from '../data/questions';
+import { KLIYENTE, EDAD, KASARIAN, REGION_GROUPS, canonicalOf, localizedOf } from '../data/questions';
+import { useLang } from '../i18n/LanguageContext';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import {
   Select,
@@ -21,20 +22,49 @@ interface Props {
 }
 
 export default function StepDemographics({ form, onChange, errors }: Props) {
+  const { lang, t } = useLang();
+
   return (
     <div className="space-y-8">
-      <RadioGroupBlock label="Uri ng Kliyente" options={KLIYENTE} value={form.uriNgKliyente} onChange={(v) => onChange({ uriNgKliyente: v })} errorKey="uriNgKliyente" errors={errors} required />
-      <RadioGroupBlock label="Edad" options={EDAD} value={form.edad} onChange={(v) => onChange({ edad: v })} errorKey="edad" errors={errors} required />
-      <RadioGroupBlock label="Kasarian" options={KASARIAN} value={form.kasarian} onChange={(v) => onChange({ kasarian: v })} errorKey="kasarian" errors={errors} required />
+      <RadioGroupBlock
+        label={t('demo.clientType')}
+        errorText={t('demo.clientTypeErr')}
+        options={KLIYENTE[lang]}
+        value={localizedOf(KLIYENTE, lang, form.uriNgKliyente)}
+        onChange={(v) => onChange({ uriNgKliyente: canonicalOf(KLIYENTE, lang, v) })}
+        errorKey="uriNgKliyente"
+        errors={errors}
+        required
+      />
+      <RadioGroupBlock
+        label={t('demo.age')}
+        errorText={t('demo.ageErr')}
+        options={EDAD[lang]}
+        value={localizedOf(EDAD, lang, form.edad)}
+        onChange={(v) => onChange({ edad: canonicalOf(EDAD, lang, v) })}
+        errorKey="edad"
+        errors={errors}
+        required
+      />
+      <RadioGroupBlock
+        label={t('demo.sex')}
+        errorText={t('demo.sexErr')}
+        options={KASARIAN[lang]}
+        value={localizedOf(KASARIAN, lang, form.kasarian)}
+        onChange={(v) => onChange({ kasarian: canonicalOf(KASARIAN, lang, v) })}
+        errorKey="kasarian"
+        errors={errors}
+        required
+      />
 
       <fieldset className="space-y-2" data-error-field="rehiyon">
         <label className="text-[15px] font-semibold text-foreground">
-          Rehiyon ng tirahan
+          {t('demo.region')}
           <RequiredIcon />
         </label>
         <Select value={form.rehiyon} onValueChange={(v) => onChange({ rehiyon: v })}>
           <SelectTrigger className="w-full rounded-xl">
-            <SelectValue placeholder="— Pumili —" />
+            <SelectValue placeholder={t('common.placeholder')} />
           </SelectTrigger>
           <SelectContent side="top">
             {REGION_GROUPS.map((group, gi) => (
@@ -51,7 +81,7 @@ export default function StepDemographics({ form, onChange, errors }: Props) {
           </SelectContent>
         </Select>
         {errors.rehiyon && (
-          <p className="text-xs text-destructive/70 pl-1">Pumili ng rehiyon</p>
+          <p className="text-xs text-destructive/70 pl-1">{t('demo.regionErr')}</p>
         )}
       </fieldset>
     </div>
@@ -62,6 +92,7 @@ export default function StepDemographics({ form, onChange, errors }: Props) {
 
 function RadioGroupBlock(props: {
   label: string;
+  errorText: string;
   options: string[];
   value: string;
   onChange: (v: string) => void;
@@ -98,7 +129,7 @@ function RadioGroupBlock(props: {
         ))}
       </RadioGroup>
       {hasError && (
-        <p className="text-xs text-destructive/70 pl-1">Pumili ng {props.label.toLowerCase()}</p>
+        <p className="text-xs text-destructive/70 pl-1">{props.errorText}</p>
       )}
     </fieldset>
   );

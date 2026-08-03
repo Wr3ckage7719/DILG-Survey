@@ -3,7 +3,7 @@ import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { toast } from 'sonner';
 import { ArrowRight, ChevronDown, ChevronLeft } from 'lucide-react';
 
-import { type FormData, SECTIONS, SECTION_LABELS, INITIAL_FORM } from './types';
+import { type FormData, SECTIONS, SECTION_LABELS, INITIAL_FORM, type Language } from './types';
 import { DISCLAIMER } from './data/questions';
 import {
   submitSurvey,
@@ -12,6 +12,8 @@ import {
   validateEmail,
   validatePhone,
 } from './api/submit';
+import { LanguageProvider, useLang } from './i18n/LanguageContext';
+import type { TranslationKey } from './i18n/translations';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -25,6 +27,7 @@ import SectionCC from './components/SectionCC';
 import SectionSQD from './components/SectionSQD';
 import SectionFeedback from './components/SectionFeedback';
 import StepIndicator from './components/StepIndicator';
+import LanguagePicker from './components/LanguagePicker';
 
 const spring = { type: 'spring' as const, stiffness: 300, damping: 30 };
 
@@ -44,7 +47,7 @@ function renderBoldText(text: string, boldPhrases: string[]) {
   );
 }
 
-  const REQUIRED_FIELDS: Record<string, (keyof FormData)[]> = {
+const REQUIRED_FIELDS: Record<string, (keyof FormData)[]> = {
   office: ['pangalanNgTanggapan', 'serbisyongIbinigay'],
   demographics: ['uriNgKliyente', 'edad', 'kasarian', 'rehiyon'],
   cc: ['cc1', 'cc2', 'cc3'],
@@ -61,22 +64,33 @@ function validate(sectionId: string, form: FormData): string[] {
   });
 }
 
-function validateFeedbackSection(form: FormData): string | null {
+function validateFeedbackSection(form: FormData, t: (key: TranslationKey) => string): string | null {
   if (form.emailAddress && !validateEmail(form.emailAddress)) {
-    return 'Hindi valid ang email address.';
+    return t('validation.email');
   }
   if (form.contactNumber && !validatePhone(form.contactNumber)) {
-    return 'Hindi valid ang contact number.';
+    return t('validation.phone');
   }
   return null;
 }
 
+type Screen = 'landing' | 'language' | 'form';
+
 export default function App() {
+  return (
+    <LanguageProvider>
+      <Survey />
+    </LanguageProvider>
+  );
+}
+
+function Survey() {
+  const { lang, setLang, t } = useLang();
+  const [screen, setScreen] = useState<Screen>('landing');
   const [sectionIdx, setSectionIdx] = useState(0);
   const [form, setForm] = useState<FormData>(INITIAL_FORM);
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [showDisclaimer, setShowDisclaimer] = useState(true);
   const [consentChecked, setConsentChecked] = useState(false);
   const [errors, setErrors] = useState<Record<string, boolean>>({});
   const [shaking, setShaking] = useState(false);
@@ -139,14 +153,14 @@ export default function App() {
     }
 
     // Validate email/phone format
-    const feedbackErr = validateFeedbackSection(form);
+    const feedbackErr = validateFeedbackSection(form, t);
     if (feedbackErr) {
       return;
     }
 
     // Honeypot check — reject silently if bot-filled
     if (honeypotRef.current && isHoneypotFilled(honeypotRef.current.value)) {
-      toast.success('Naipadala ang inyong sarbey!');
+      toast.success(t('toast.submitted'));
       setSubmitted(true);
       return;
     }
@@ -158,15 +172,15 @@ export default function App() {
     const ref = generateRefNumber();
     setRefNumber(ref);
 
-    const result = await submitSurvey(form, ref);
+    const result = await submitSurvey(form, ref, lang);
     setSubmitting(false);
 
     if (result.ok) {
       setSubmitted(true);
-      toast.success('Naipadala ang inyong sarbey!');
+      toast.success(t('toast.submitted'));
     } else {
       navigator.vibrate?.([120, 60, 120]);
-      toast.error(result.error || 'Hindi nakapag-submit. Pakisubukan muli.');
+      toast.error(result.error || t('toast.failed'));
     }
   };
 
@@ -186,7 +200,7 @@ export default function App() {
     }
   };
 
-  if (showDisclaimer) {
+  if (screen === 'landing') {
     return (
       <>
         <div className="min-h-screen flex items-center justify-center p-5 bg-white">
@@ -269,7 +283,7 @@ export default function App() {
 
             {/* Submit button */}
             <MotionButton
-              onClick={() => setShowDisclaimer(false)}
+              onClick={() => setScreen('language')}
               size="lg"
               disabled={!consentChecked}
               initial="rest"
@@ -296,6 +310,18 @@ export default function App() {
     );
   }
 
+  if (screen === 'language') {
+    return (
+      <LanguagePicker
+        onSelect={(l: Language) => {
+          setLang(l);
+          setScreen('form');
+        }}
+        onBack={() => setScreen('landing')}
+      />
+    );
+  }
+
   if (submitted) {
     return (
       <>
@@ -310,20 +336,20 @@ export default function App() {
                 style={{ width: '100%', height: '100%' }}
               />
             </div>
-            <h2 className="text-xl font-bold text-primary">Maraming Salamat!</h2>
+            <h2 className="text-xl font-bold text-primary">{t('done.title')}</h2>
             <p className="text-muted-foreground text-sm">
-              Ang inyong tugon ay makatutulong sa pagpapabuti ng serbisyo publiko.
+              {t('done.message')}
             </p>
             {refNumber && (
               <div className="mt-4 rounded-xl bg-muted/50 border border-border px-4 py-3 text-center">
                 <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">
-                  Reference Number
+                  {t('done.refLabel')}
                 </p>
                 <p className="text-sm font-mono font-bold text-primary select-all">
                   {refNumber}
                 </p>
                 <p className="text-[10px] text-muted-foreground mt-1">
-                  Pakitago ang numerong ito para sa inyong talaan.
+                  {t('done.refHint')}
                 </p>
               </div>
             )}
@@ -373,7 +399,7 @@ export default function App() {
               )}>
                 <CardContent className="p-6 md:p-8">
                   <h2 className="text-base font-bold text-primary mb-8">
-                    {SECTION_LABELS[sectionId]}
+                    {SECTION_LABELS[lang][sectionId]}
                   </h2>
                   {renderSection()}
                 </CardContent>
@@ -389,7 +415,7 @@ export default function App() {
           {sectionIdx > 0 && (
             <Button variant="outline" onClick={prev} className="flex-1">
               <ChevronLeft className="w-4 h-4" />
-              Bumalik
+              {t('nav.back')}
             </Button>
           )}
           {!isLast ? (
@@ -399,7 +425,7 @@ export default function App() {
               whileHover="hover"
               className="flex-1"
             >
-              Susunod
+              {t('nav.next')}
               <motion.span
                 variants={slideArrowVariants}
                 transition={{ duration: 0.2, ease: 'easeOut' }}
@@ -417,7 +443,7 @@ export default function App() {
               whileHover="hover"
               className="flex-1"
             >
-              {submitting ? 'Ipinapadala\u2026' : 'Isumite ang Sarbey'}
+              {submitting ? t('nav.submitting') : t('nav.submit')}
               <motion.span
                 variants={slideArrowVariants}
                 transition={{ duration: 0.2, ease: 'easeOut' }}

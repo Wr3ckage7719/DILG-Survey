@@ -1,6 +1,7 @@
 import type { FormData } from '../types';
 import { Fragment } from 'react';
-import { OFFICES, SERVICE_GROUPS } from '../data/questions';
+import { OFFICES, SERVICES, SERVICE_GROUPS, canonicalOf, localizedOf } from '../data/questions';
+import { useLang } from '../i18n/LanguageContext';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import {
   Select,
@@ -22,11 +23,13 @@ interface Props {
 }
 
 export default function StepOffice({ form, onChange, errors }: Props) {
+  const { lang, t } = useLang();
+
   return (
     <div className="space-y-7">
       <fieldset className="space-y-2" data-error-field="pangalanNgTanggapan">
         <label className="text-[15px] font-semibold text-foreground">
-          Pangalan ng tanggapan / operating unit
+          {t('office.name')}
           <RequiredIcon />
         </label>
         <RadioGroup
@@ -50,24 +53,24 @@ export default function StepOffice({ form, onChange, errors }: Props) {
           ))}
         </RadioGroup>
         {errors.pangalanNgTanggapan && (
-          <p className="text-xs text-destructive/70 pl-1">Pumili ng tanggapan</p>
+          <p className="text-xs text-destructive/70 pl-1">{t('office.selectOffice')}</p>
         )}
       </fieldset>
 
       <fieldset className="space-y-2" data-error-field="serbisyongIbinigay">
         <label className="text-[15px] font-semibold text-foreground">
-          Serbisyong ibinigay
+          {t('office.service')}
           <RequiredIcon />
         </label>
         <Select
-          value={form.serbisyongIbinigay}
-          onValueChange={(v) => onChange({ serbisyongIbinigay: v })}
+          value={localizedOf(SERVICES, lang, form.serbisyongIbinigay)}
+          onValueChange={(v) => onChange({ serbisyongIbinigay: canonicalOf(SERVICES, lang, v) })}
         >
           <SelectTrigger className="w-full rounded-xl">
-            <SelectValue placeholder="— Pumili —" />
+            <SelectValue placeholder={t('common.placeholder')} />
           </SelectTrigger>
           <SelectContent side="top">
-            {SERVICE_GROUPS.map((group, gi) => (
+            {SERVICE_GROUPS[lang].map((group, gi) => (
               <Fragment key={gi}>
                 {gi > 0 && <SelectSeparator />}
                 <SelectGroup>
@@ -81,17 +84,17 @@ export default function StepOffice({ form, onChange, errors }: Props) {
           </SelectContent>
         </Select>
         {errors.serbisyongIbinigay && (
-          <p className="text-xs text-destructive/70 pl-1">Pumili ng serbisyo</p>
+          <p className="text-xs text-destructive/70 pl-1">{t('office.selectService')}</p>
         )}
       </fieldset>
 
       {form.serbisyongIbinigay === 'Other/s (Tukuyin ang iba pang serbisyo)' && (
         <div className="ml-2 pl-4 border-l-2 border-accent/20">
           <label className="block text-[15px] font-medium text-foreground mb-1.5">
-            Tukuyin ang iba pang serbisyo:
+            {t('office.other')}
           </label>
           <Input
-            placeholder="Ilagay ang serbisyo..."
+            placeholder={t('office.otherPlaceholder')}
             value={form.serbisyongIba}
             onChange={(e) => onChange({ serbisyongIba: e.target.value })}
             className="rounded-xl"

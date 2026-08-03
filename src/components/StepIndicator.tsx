@@ -1,4 +1,5 @@
 import { Building2, Users, ClipboardList, Star, MessageSquare, Check } from 'lucide-react';
+import { useLang } from '../i18n/LanguageContext';
 import { cn } from '@/lib/utils';
 
 interface Props {
@@ -6,15 +7,16 @@ interface Props {
   total: number;
 }
 
-const STEPS = [
-  { icon: Building2, label: 'Tanggapan' },
-  { icon: Users, label: 'Demo' },
-  { icon: ClipboardList, label: 'CC' },
-  { icon: Star, label: 'Kalidad' },
-  { icon: MessageSquare, label: 'Puná' },
-];
-
 export default function StepIndicator({ currentIndex, total }: Props) {
+  const { t } = useLang();
+  const STEPS = [
+    { icon: Building2, label: t('indicator.office') },
+    { icon: Users, label: t('indicator.demo') },
+    { icon: ClipboardList, label: t('indicator.cc') },
+    { icon: Star, label: t('indicator.quality') },
+    { icon: MessageSquare, label: t('indicator.feedback') },
+  ];
+
   return (
     <div className="mb-9 px-1">
       <div className="flex items-center justify-center">
@@ -32,6 +34,7 @@ export default function StepIndicator({ currentIndex, total }: Props) {
                   isActive && 'bg-accent text-white ring-4 ring-accent/20',
                   !isCompleted && !isActive && 'bg-muted text-muted-foreground/40',
                 )}
+                title={step.label}
               >
                 {isCompleted ? (
                   <Check className="size-4" strokeWidth={2.5} />

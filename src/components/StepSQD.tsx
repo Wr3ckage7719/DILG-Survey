@@ -1,5 +1,6 @@
 import type { FormData } from '../types';
-import { SQD_LABELS, SQD_OPTIONS } from '../data/questions';
+import { SQD_LABELS, SQD_OPTIONS, canonicalOf, localizedOf } from '../data/questions';
+import { useLang } from '../i18n/LanguageContext';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { cn } from '@/lib/utils';
 
@@ -10,28 +11,29 @@ interface Props {
 }
 
 export default function StepSQD({ index, form, onChange }: Props) {
-  const label = SQD_LABELS[index];
-  const value = form.sqd[index];
+  const { lang } = useLang();
+  const label = SQD_LABELS[lang][index];
+  const displayValue = localizedOf(SQD_OPTIONS, lang, form.sqd[index]);
 
   return (
     <fieldset className="space-y-3">
       <p className="text-[15px] font-semibold text-foreground leading-relaxed">{label}</p>
       <RadioGroup
-        value={value}
+        value={displayValue}
         onValueChange={(v) => {
           const next = [...form.sqd];
-          next[index] = v;
+          next[index] = canonicalOf(SQD_OPTIONS, lang, v);
           onChange({ sqd: next });
         }}
       >
-        {SQD_OPTIONS.map((opt) => {
-          const isSelected = value === opt;
+        {SQD_OPTIONS[lang].map((opt) => {
+          const isSelected = displayValue === opt;
           return (
           <div
             key={opt}
             onClick={() => {
               const next = [...form.sqd];
-              next[index] = opt;
+              next[index] = canonicalOf(SQD_OPTIONS, lang, opt);
               onChange({ sqd: next });
             }}
             className={cn(

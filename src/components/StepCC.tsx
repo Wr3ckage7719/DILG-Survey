@@ -1,6 +1,7 @@
 import { cn } from '@/lib/utils';
 import type { FormData } from '../types';
-import { CC1_OPTIONS, CC2_OPTIONS, CC3_OPTIONS } from '../data/questions';
+import { CC1_OPTIONS, CC2_OPTIONS, CC3_OPTIONS, canonicalOf, localizedOf } from '../data/questions';
+import { useLang } from '../i18n/LanguageContext';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 
 interface Props {
@@ -10,20 +11,27 @@ interface Props {
   errors?: Record<string, boolean>;
 }
 
-const CC_TITLES: Record<number, string> = {
-  1: 'CC1. Alin sa mga sumusunod ang naglalarawan ng iyong kaalaman sa CC/Gabay?',
-  2: 'CC2. Kung alam ang Gabay, masasabi mo ba na ang Gabay ng tanggapang ito ay:',
-  3: 'CC3. Kung alam ang Gabay, gaano nakatulong ang Gabay sa iyong transaksiyon?',
+const CC_OPTIONS: Record<number, Record<'tl' | 'en', string[]>> = {
+  1: CC1_OPTIONS,
+  2: CC2_OPTIONS,
+  3: CC3_OPTIONS,
 };
 
-const CC_OPTIONS: Record<number, string[]> = { 1: CC1_OPTIONS, 2: CC2_OPTIONS, 3: CC3_OPTIONS };
+const CC_TITLE_KEYS: Record<number, 'cc.title1' | 'cc.title2' | 'cc.title3'> = {
+  1: 'cc.title1',
+  2: 'cc.title2',
+  3: 'cc.title3',
+};
+
 const CC_KEYS = ['cc1', 'cc2', 'cc3'] as const;
 
 export default function StepCC({ num, form, onChange, errors }: Props) {
+  const { lang, t } = useLang();
   const key = CC_KEYS[num - 1];
-  const options = CC_OPTIONS[num];
-  const title = CC_TITLES[num];
+  const options = CC_OPTIONS[num][lang];
+  const title = t(CC_TITLE_KEYS[num]);
   const hasError = errors?.[key];
+  const displayValue = localizedOf(CC_OPTIONS[num], lang, form[key]);
 
   return (
     <fieldset
@@ -34,15 +42,15 @@ export default function StepCC({ num, form, onChange, errors }: Props) {
         {title}
       </p>
       <RadioGroup
-        value={form[key]}
-        onValueChange={(v) => onChange({ [key]: v } as Partial<FormData>)}
+        value={displayValue}
+        onValueChange={(v) => onChange({ [key]: canonicalOf(CC_OPTIONS[num], lang, v) } as Partial<FormData>)}
       >
         {options.map((o, i) => {
-          const isSelected = form[key] === o;
+          const isSelected = displayValue === o;
           return (
           <div
             key={i}
-            onClick={() => onChange({ [key]: o } as Partial<FormData>)}
+            onClick={() => onChange({ [key]: canonicalOf(CC_OPTIONS[num], lang, o) } as Partial<FormData>)}
             className={cn(
               'flex items-start gap-3.5 rounded-2xl border px-5 py-3.5 cursor-pointer transition-colors duration-200 text-[15px]',
               isSelected
@@ -57,7 +65,7 @@ export default function StepCC({ num, form, onChange, errors }: Props) {
         })}
       </RadioGroup>
       {hasError && (
-        <p className="text-xs text-destructive/70 pl-1">Pumili ng sagot</p>
+        <p className="text-xs text-destructive/70 pl-1">{t('cc.select')}</p>
       )}
     </fieldset>
   );
