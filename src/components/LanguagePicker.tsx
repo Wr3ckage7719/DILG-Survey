@@ -13,7 +13,7 @@ interface Props {
 }
 
 const OPTIONS: { lang: Language; name: string; desc: string; icon: typeof Flag }[] = [
-  { lang: 'tl', name: 'Filipino (Tagalog)', desc: 'Wikang pambansa', icon: Flag },
+  { lang: 'tl', name: 'Filipino (Tagalog)', desc: 'National language', icon: Flag },
   { lang: 'en', name: 'English', desc: 'The English language', icon: Globe },
 ];
 
@@ -32,16 +32,16 @@ export default function LanguagePicker({ onSelect, onBack }: Props) {
           />
         </div>
 
-        {/* Heading — bilingual since language is not yet chosen */}
+        {/* Heading — universal English since language is not yet chosen */}
         <div className="space-y-2">
           <h1 className="flex items-center justify-center gap-2.5 text-2xl font-extrabold tracking-tight text-foreground">
             <span className="size-10 rounded-full bg-muted flex items-center justify-center shrink-0">
               <Languages className="size-5 text-foreground/70" />
             </span>
-            Pumili ng Wika
+            Choose a Language
           </h1>
           <p className="text-sm text-muted-foreground">
-            Piliin ang wika na inyong gagamitin sa sarbey. / Select the language you will use for the survey.
+            Select the language you will use for the survey.
           </p>
         </div>
 
@@ -86,7 +86,7 @@ export default function LanguagePicker({ onSelect, onBack }: Props) {
           })}
         </div>
 
-        {/* Continue — label follows the chosen language */}
+        {/* Continue — universal English */}
         <MotionButton
           onClick={() => selected && onSelect(selected)}
           disabled={!selected}
@@ -95,7 +95,7 @@ export default function LanguagePicker({ onSelect, onBack }: Props) {
           animate={{ opacity: selected ? 1 : 0.4, y: 0 }}
           className="w-full rounded-full bg-primary hover:bg-primary/90 text-white font-semibold py-6 text-base"
         >
-          {selected === 'en' ? 'Continue' : 'Magpatuloy'}
+          Continue
         </MotionButton>
 
         <Button
@@ -104,7 +104,7 @@ export default function LanguagePicker({ onSelect, onBack }: Props) {
           className="mx-auto text-muted-foreground"
         >
           <ChevronLeft className="w-4 h-4" />
-          Bumalik / Back
+          Back
         </Button>
       </div>
     </div>
