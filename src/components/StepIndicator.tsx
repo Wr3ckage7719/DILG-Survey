@@ -39,12 +39,12 @@ export default function StepIndicator({ currentIndex, total }: Props) {
                 title={step.label}
                 animate={
                   isActive && !prefersReduced
-                    ? { scale: [1, 1.07, 1] }
+                    ? { scale: [1, 1.15, 1] }
                     : { scale: 1 }
                 }
                 transition={
                   isActive && !prefersReduced
-                    ? { duration: 2.4, repeat: Infinity, ease: 'easeInOut' }
+                    ? { duration: 1.6, repeat: Infinity, ease: 'easeInOut' }
                     : undefined
                 }
               >
