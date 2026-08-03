@@ -377,7 +377,7 @@ function Survey() {
           {/* DILG header */}
           <div className="flex items-center justify-center mt-5 mb-7">
             <img
-              src="/logo-2.png"
+              src="/logo-3.png"
               alt="DILG Logo"
               className="h-12 object-contain"
             />

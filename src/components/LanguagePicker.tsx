@@ -26,7 +26,7 @@ export default function LanguagePicker({ onSelect, onBack }: Props) {
         {/* DILG header */}
         <div className="flex items-center justify-center">
           <img
-            src="/logo-2.png"
+            src="/logo-3.png"
             alt="DILG Logo"
             className="h-12 object-contain"
           />
