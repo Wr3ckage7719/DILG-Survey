@@ -155,16 +155,19 @@ const en: Record<TranslationKey, string> = {
   // CC section
   'cc.bannerTitle': 'DILG Citizen\u2019s Charter',
   'cc.bannerText':
-    'Instructions: The Citizen\u2019s Charter is a document that shows the services ' +
-    'of a government office and its corresponding requirements, fees, and processing time.',
-  'cc.title1': 'CC1. Which of the following best describes your awareness of the CC/Charter?',
-  'cc.title2': 'CC2. If aware of the Charter, would you say that this office\u2019s Charter is:',
-  'cc.title3': 'CC3. If aware of the Charter, how helpful was the Charter in your transaction?',
+    'Instructions: Put a check mark beside the statement that best describes your awareness ' +
+    'and experience in using the DILG Citizen\u2019s Charter (CC). The Citizen\u2019s Charter (CC) is ' +
+    'an official document that reflects the services of a government agency/office including ' +
+    'its requirements, fees, and processing times, among others.',
+  'cc.title1': 'CC1. Which of the following best describes your awareness of a CC?',
+  'cc.title2': 'CC2. If aware of CC (answered 1-3 in CC1), would you say that the CC of this office was:',
+  'cc.title3': 'CC3. If aware of CC (answered codes 1-3 in CC1), how much did the CC help you in your transaction?',
   'cc.select': 'Select an answer',
 
   // SQD section
   'sqd.instructions': 'Instructions',
-  'sqd.instructionsText': 'Check (\u2713) the column that best fits your answer.',
+  'sqd.instructionsText':
+    'For the following items, put a check mark on the column that best describes your satisfaction level.',
 
   // Feedback section
   'feedback.suggestions': 'Suggestions',

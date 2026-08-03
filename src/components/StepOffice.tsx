@@ -1,6 +1,6 @@
 import type { FormData } from '../types';
 import { Fragment } from 'react';
-import { OFFICES, SERVICES, SERVICE_GROUPS, canonicalOf, localizedOf } from '../data/questions';
+import { OFFICES, SERVICES, SERVICE_GROUPS, localizedOf } from '../data/questions';
 import { useLang } from '../i18n/LanguageContext';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import {
@@ -64,7 +64,7 @@ export default function StepOffice({ form, onChange, errors }: Props) {
         </label>
         <Select
           value={localizedOf(SERVICES, lang, form.serbisyongIbinigay)}
-          onValueChange={(v) => onChange({ serbisyongIbinigay: canonicalOf(SERVICES, lang, v) })}
+          onValueChange={(v) => onChange({ serbisyongIbinigay: v })}
         >
           <SelectTrigger className="w-full rounded-xl">
             <SelectValue placeholder={t('common.placeholder')} />
@@ -88,7 +88,8 @@ export default function StepOffice({ form, onChange, errors }: Props) {
         )}
       </fieldset>
 
-      {form.serbisyongIbinigay === 'Other/s (Tukuyin ang iba pang serbisyo)' && (
+      {(form.serbisyongIbinigay === 'Other/s (Tukuyin ang iba pang serbisyo)' ||
+        form.serbisyongIbinigay === 'Other/s (Specify other service)') && (
         <div className="ml-2 pl-4 border-l-2 border-accent/20">
           <label className="block text-[15px] font-medium text-foreground mb-1.5">
             {t('office.other')}

@@ -1,5 +1,5 @@
 import type { FormData } from '../types';
-import { SQD_LABELS, SQD_OPTIONS, canonicalOf, localizedOf } from '../data/questions';
+import { SQD_LABELS, SQD_OPTIONS, localizedOf } from '../data/questions';
 import { useLang } from '../i18n/LanguageContext';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { cn } from '@/lib/utils';
@@ -22,7 +22,7 @@ export default function StepSQD({ index, form, onChange }: Props) {
         value={displayValue}
         onValueChange={(v) => {
           const next = [...form.sqd];
-          next[index] = canonicalOf(SQD_OPTIONS, lang, v);
+          next[index] = v;
           onChange({ sqd: next });
         }}
       >
@@ -33,7 +33,7 @@ export default function StepSQD({ index, form, onChange }: Props) {
             key={opt}
             onClick={() => {
               const next = [...form.sqd];
-              next[index] = canonicalOf(SQD_OPTIONS, lang, opt);
+              next[index] = opt;
               onChange({ sqd: next });
             }}
             className={cn(

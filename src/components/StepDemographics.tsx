@@ -1,5 +1,5 @@
 import type { FormData } from '../types';
-import { KLIYENTE, EDAD, KASARIAN, REGION_GROUPS, canonicalOf, localizedOf } from '../data/questions';
+import { KLIYENTE, EDAD, KASARIAN, REGION_GROUPS, localizedOf } from '../data/questions';
 import { useLang } from '../i18n/LanguageContext';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import {
@@ -31,7 +31,7 @@ export default function StepDemographics({ form, onChange, errors }: Props) {
         errorText={t('demo.clientTypeErr')}
         options={KLIYENTE[lang]}
         value={localizedOf(KLIYENTE, lang, form.uriNgKliyente)}
-        onChange={(v) => onChange({ uriNgKliyente: canonicalOf(KLIYENTE, lang, v) })}
+        onChange={(v) => onChange({ uriNgKliyente: v })}
         errorKey="uriNgKliyente"
         errors={errors}
         required
@@ -41,7 +41,7 @@ export default function StepDemographics({ form, onChange, errors }: Props) {
         errorText={t('demo.ageErr')}
         options={EDAD[lang]}
         value={localizedOf(EDAD, lang, form.edad)}
-        onChange={(v) => onChange({ edad: canonicalOf(EDAD, lang, v) })}
+        onChange={(v) => onChange({ edad: v })}
         errorKey="edad"
         errors={errors}
         required
@@ -51,7 +51,7 @@ export default function StepDemographics({ form, onChange, errors }: Props) {
         errorText={t('demo.sexErr')}
         options={KASARIAN[lang]}
         value={localizedOf(KASARIAN, lang, form.kasarian)}
-        onChange={(v) => onChange({ kasarian: canonicalOf(KASARIAN, lang, v) })}
+        onChange={(v) => onChange({ kasarian: v })}
         errorKey="kasarian"
         errors={errors}
         required

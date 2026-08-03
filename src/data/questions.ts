@@ -197,7 +197,7 @@ export const EDAD: BilingualList = {
 
 export const KASARIAN: BilingualList = {
   tl: ['Lalaki', 'Babae', 'LGBTQIA+', 'Hindi nais sabihin'],
-  en: ['Male', 'Female', 'LGBTQIA+', 'Prefer not to say'],
+  en: ['Man', 'Woman', 'LGBTQIA+', 'Prefer not to say'],
 };
 
 export const REGIONS = [
@@ -263,21 +263,21 @@ export const CC1_OPTIONS: BilingualList = {
     'Hindi ko alam kung ano ang Gabay, at hindi ako nakakita ng Gabay sa tanggapang ito. (Piliin ang N/A sa CC2 at CC3.)',
   ],
   en: [
-    'I know what a Citizen\u2019s Charter is, and I saw this office\u2019s Citizen\u2019s Charter.',
-    'I know what a Citizen\u2019s Charter is, but I did NOT see this office\u2019s Citizen\u2019s Charter.',
-    'I learned of the Citizen\u2019s Charter only when I saw this office\u2019s Citizen\u2019s Charter.',
-    'I do not know what a Citizen\u2019s Charter is, and I did not see one in this office. (Select N/A for CC2 and CC3.)',
+    'I know what a CC is and I saw this office\u2019s CC.',
+    'I know what a CC is but I did NOT see this office\u2019s CC.',
+    'I learned of the CC only when I saw this office\u2019s CC.',
+    'I do not know what a CC is and I did not see one in this office. (Answer \u2018N/A\u2019 on CC2 and CC3)',
   ],
 };
 
 export const CC2_OPTIONS: BilingualList = {
   tl: ['Madaling makita', 'Bahagyang nakikita', 'Mahirap makita', 'Hindi makita', 'N/A'],
-  en: ['Easily visible', 'Somewhat visible', 'Not visible', 'Not at all visible', 'N/A'],
+  en: ['Easy to see', 'Somewhat easy to see', 'Difficult to see', 'Not visible at all', 'N/A'],
 };
 
 export const CC3_OPTIONS: BilingualList = {
   tl: ['Lubos na nakatulong', 'Bahagyang nakatulong', 'Hindi nakatulong', 'N/A'],
-  en: ['Very helpful', 'Somewhat helpful', 'Not helpful', 'N/A'],
+  en: ['Helped very much', 'Somewhat helped', 'Did not help', 'N/A'],
 };
 
 export const SQD_OPTIONS: BilingualList = {
@@ -292,7 +292,7 @@ export const SQD_OPTIONS: BilingualList = {
   en: [
     'Strongly agree',
     'Agree',
-    'Neutral',
+    'Neither agree nor disagree',
     'Disagree',
     'Strongly disagree',
     'N/A',
@@ -312,14 +312,14 @@ export const SQD_LABELS: BilingualList = {
     'SQD8. Nakuha ko ang kinakailangan ko mula sa tanggapan. (Kung tinanggihan man, sapat na ipinaliwanag.)',
   ],
   en: [
-    'SQD0. I am satisfied with the service I received.',
-    'SQD1. The time I waited for my transaction was reasonable.',
-    'SQD2. The office followed the requirements and steps based on the information provided.',
-    'SQD3. The steps I took to process my transaction, including payment, were easy and simple.',
+    'SQD0. I am satisfied with the service that I availed.',
+    'SQD1. I spent a reasonable amount of time for my transaction.',
+    'SQD2. The office followed the transaction\u2019s requirements and steps based on the information provided.',
+    'SQD3. The steps (including payment) I needed to do for my transaction were easy and simple.',
     'SQD4. I easily found information about my transaction from the office or its website.',
-    'SQD5. I paid a reasonable amount of fees for my transaction. (If the service is free, select N/A)',
-    'SQD6. I feel the office was fair to everyone or had no favoritism in my transaction.',
-    'SQD7. The staff treated me courteously and helpfully.',
-    'SQD8. I got what I needed from the office. (If denied, it was sufficiently explained.)',
+    'SQD5. I paid a reasonable amount of fees for my transaction. (If service was free, mark the \u2018N/A\u2019 column.)',
+    'SQD6. I feel the office was fair to everyone, or \u201cwalang palakasan\u201d, during my transaction.',
+    'SQD7. I was treated courteously by the staff, and (if asked for help) the staff was helpful.',
+    'SQD8. I got what I needed from the government office, or (if denied) denial of request was sufficiently explained to me.',
   ],
 };

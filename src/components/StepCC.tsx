@@ -1,6 +1,6 @@
 import { cn } from '@/lib/utils';
 import type { FormData } from '../types';
-import { CC1_OPTIONS, CC2_OPTIONS, CC3_OPTIONS, canonicalOf, localizedOf } from '../data/questions';
+import { CC1_OPTIONS, CC2_OPTIONS, CC3_OPTIONS, localizedOf } from '../data/questions';
 import { useLang } from '../i18n/LanguageContext';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 
@@ -43,14 +43,14 @@ export default function StepCC({ num, form, onChange, errors }: Props) {
       </p>
       <RadioGroup
         value={displayValue}
-        onValueChange={(v) => onChange({ [key]: canonicalOf(CC_OPTIONS[num], lang, v) } as Partial<FormData>)}
+        onValueChange={(v) => onChange({ [key]: v } as Partial<FormData>)}
       >
         {options.map((o, i) => {
           const isSelected = displayValue === o;
           return (
           <div
             key={i}
-            onClick={() => onChange({ [key]: canonicalOf(CC_OPTIONS[num], lang, o) } as Partial<FormData>)}
+            onClick={() => onChange({ [key]: o } as Partial<FormData>)}
             className={cn(
               'flex items-start gap-3.5 rounded-2xl border px-5 py-3.5 cursor-pointer transition-colors duration-200 text-[15px]',
               isSelected
