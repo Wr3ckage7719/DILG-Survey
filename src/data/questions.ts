@@ -1,19 +1,19 @@
 import type { Language } from '../types';
 
 export const DISCLAIMER = {
-  title: 'Minamahal naming kliyente,',
-  text: 'Pakisagutan ang sarbey na ito at ilahad ang inyong mga puna sa serbisyong aming binigay. ' +
-    'Aming kinakalap ang inyong personal na datos para sa pagsusuring maaaring gawin ng DILG. ' +
-    'Ang inyong datos ay itatago sa aming database o sa isang ligtas na locker para sa mga pisikal na form ' +
-    'sa loob ng dalawang taon bago tuluyang burahin sa aming talaan. ' +
-    'Kung nais ninyong baguhin ang inyong personal na datos, maaari itong ipaalam sa nakatalagang kawani. ' +
-    'Kung mayroon kayong mapapansin sa pagpoproseso ng inyong datos na hindi naaayon sa batas, ' +
-    'maaaring ipagbigay alam ito sa DILG Data Protection Officer sa dpo.dilg@gmail.com.',
+  title: 'Dear Client,',
+  text: 'Kindly fill-up this survey form and let us know your experience while transacting ' +
+    'official business with us. We collect your personal data in this form for statistical ' +
+    'and evaluation purposes. Your information will be stored in our database or secured ' +
+    'records locker for physical forms for two years before being permanently erased from ' +
+    'our records. Should you need to update your personal data, you may contact the ' +
+    'designated action officer. If you wish to report any unlawful processing of data from ' +
+    'this survey, please contact the DILG Data Protection Officer at dpo.dilg@gmail.com.',
   boldPhrases: [
-    'kinakalap ang inyong personal na datos para sa pagsusuring maaaring gawin ng DILG',
-    'itatago sa aming database o sa isang ligtas na locker para sa mga pisikal na form sa loob ng dalawang taon bago tuluyang burahin sa aming talaan',
-    'maaari itong ipaalam sa nakatalagang kawani',
-    'maaaring ipagbigay alam ito sa DILG Data Protection Officer sa dpo.dilg@gmail.com',
+    'We collect your personal data in this form for statistical and evaluation purposes.',
+    'Your information will be stored in our database or secured records locker for physical forms for two years before being permanently erased from our records',
+    'you may contact the designated action officer',
+    'please contact the DILG Data Protection Officer at dpo.dilg@gmail.com',
   ],
 };
 

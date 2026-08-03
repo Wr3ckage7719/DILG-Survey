@@ -235,7 +235,7 @@ function Survey() {
                 className="w-full flex items-center justify-between p-4 gap-3 hover:bg-secondary/50 transition-colors"
               >
                 <span className="text-sm text-foreground">
-                  Pakibasa ang Data Privacy Notice at ibigay ang iyong pahintulot.
+                  Please read the Data Privacy Notice and give your consent.
                 </span>
                 <ChevronDown
                   className={cn(
@@ -277,7 +277,7 @@ function Survey() {
                 className="size-4 shrink-0 accent-primary rounded"
               />
               <span className="text-sm text-muted-foreground leading-relaxed select-none">
-                Nabasa ko na ang Data Privacy Notice at nagbibigay ako ng aking pahintulot.
+                I have read the Data Privacy Notice and I give my consent.
               </span>
             </label>
 
@@ -290,7 +290,7 @@ function Survey() {
               whileHover="hover"
               className="w-full rounded-full bg-primary hover:bg-primary/90 text-white font-semibold py-6 text-base"
             >
-              MAGPATULOY
+              CONTINUE
               <motion.span
                 variants={slideArrowVariants}
                 transition={{ duration: 0.2, ease: 'easeOut' }}
@@ -301,7 +301,7 @@ function Survey() {
             </MotionButton>
             {!consentChecked && (
               <p className="text-xs text-muted-foreground/70">
-                Kailangan munang magbigay ng pahintulot bago magpatuloy.
+                Consent is required before proceeding.
               </p>
             )}
           </div>
