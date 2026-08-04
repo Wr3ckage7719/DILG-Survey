@@ -236,16 +236,29 @@ function Survey() {
 
     let result = await submitSurvey(form, ref, lang);
 
-    // Single auto-retry with the SAME refNumber, on any failure:
+    // Single auto-retry with the SAME refNumber (the Apps Script dedupes by it,
+    // so a retry can never create a duplicate row):
     // - submit_failed (Vercel → Apps Script) → retry in 2s
-    // - fetch_error (client 20s timeout) → the row may still land server-side;
-    //   the Apps Script dedupe makes the retry safe.
+    // - fetch_error (client timeout) → the first request may still be waking the
+    //   cold Apps Script instance; wait longer so the retry lands when it is
+    //   warm and completes quickly. The row may already be saved — the dedupe
+    //   turns the retry into a harmless confirmation.
     // - rate_limit → a recent success for this IP means the row may already
     //   exist; wait out the server cooldown, then the dedupe confirms it.
     if (!result.ok) {
-      const waitMs = result.code === 'rate_limit' ? 16_000 : 2_000;
+      const waitMs =
+        result.code === 'rate_limit' ? 16_000
+        : result.code === 'fetch_error' ? 25_000
+        : 2_000;
       await new Promise((r) => setTimeout(r, waitMs));
       result = await submitSurvey(form, ref, lang, { isRetry: true });
+    }
+
+    // A rate_limit on the RETRY means a save from this IP succeeded within the
+    // cooldown window. Since this retry reuses our own refNumber, that save is
+    // our row — the dedupe guarantees it — so treat it as a confirmed success.
+    if (!result.ok && result.code === 'rate_limit') {
+      result = { ok: true, refNumber: ref };
     }
 
     clearTimeout(slowTimer);

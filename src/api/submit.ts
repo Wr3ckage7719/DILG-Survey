@@ -129,8 +129,13 @@ export async function submitSurvey(
     const sanitized = sanitizeForm(data);
     const startedAt = Date.now();
 
+    // Retries get a longer window: the first attempt may be waiting out a cold
+    // Apps Script start (~27-40s). By the time we retry, the instance is usually
+    // warm, but give the retry room so it can't abort while the server finishes
+    // waking up (the row may still be saved server-side either way).
+    const timeoutMs = opts.isRetry ? 45_000 : SUBMIT_TIMEOUT_MS;
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), SUBMIT_TIMEOUT_MS);
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
     let json: { ok?: boolean; error?: string; refNumber?: string; retryIn?: number } | null = null;
     try {
       const res = await fetch('/api/submit', {
