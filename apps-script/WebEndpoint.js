@@ -128,6 +128,9 @@ function doPost(e) {
       }
 
       sheet.appendRow(row);
+      // Commit immediately so a concurrent request (possibly on another web app
+      // instance) doing its own dedupe read can see this row right away.
+      SpreadsheetApp.flush();
       Logger.log('doPost ok in ' + (Date.now() - t0) + 'ms ref=' + data.refNumber);
       return okResponse(false);
     } finally {
@@ -208,8 +211,132 @@ function mapField(header, data) {
   return '';
 }
 
-function doGet() {
+function doGet(e) {
+  // Ref lookup: GET .../exec?ref=DILG-XXXX — read-only confirmation used by the
+  // client as a final safety net ("was my submission recorded?") when a POST
+  // response was lost (e.g. after a cold start). Never writes.
+  if (e && e.parameter && e.parameter.ref) {
+    return lookupRefResponse(String(e.parameter.ref));
+  }
   return ContentService
     .createTextOutput('DILG Survey Web Endpoint is running.')
     .setMimeType(ContentService.MimeType.TEXT);
+}
+
+function lookupRefResponse(ref) {
+  try {
+    var sheet = SpreadsheetApp.getActiveSheet();
+    var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+    var refCol = -1;
+    for (var i = 0; i < headers.length; i++) {
+      if (String(headers[i]).indexOf('Reference Number') !== -1) { refCol = i; break; }
+    }
+    if (refCol === -1) return jsonOut({ saved: false });
+    var lastRow = sheet.getLastRow();
+    var vals = sheet.getRange(2, refCol + 1, Math.max(lastRow - 1, 1), 1).getValues();
+    for (var r = 0; r < vals.length; r++) {
+      if (String(vals[r][0]) === String(ref)) return jsonOut({ saved: true });
+    }
+    return jsonOut({ saved: false });
+  } catch (err) {
+    Logger.log('lookupRef error: ' + err);
+    return jsonOut({ saved: false, error: err.toString() });
+  }
+}
+
+function jsonOut(obj) {
+  return ContentService
+    .createTextOutput(JSON.stringify(obj))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+// ──────────────────────────────────
+// Data-layer safety net: duplicate cleanup
+// ──────────────────────────────────
+// LockService is not reliably shared across web app instances (known Google
+// issue), so the in-request dedupe in doPost is best-effort. This daily trigger
+// scans the Reference Number column and removes any duplicate rows (keeping the
+// first), guaranteeing the sheet can never keep a duplicated submission even in
+// a worst-case race. Run it any time via the Advanced menu.
+function cleanupDuplicateRefs() {
+  try {
+    var sheet = SpreadsheetApp.getActiveSheet();
+    var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+    var refCol = -1;
+    for (var i = 0; i < headers.length; i++) {
+      if (String(headers[i]).indexOf('Reference Number') !== -1) { refCol = i; break; }
+    }
+    if (refCol === -1) return 0;
+    var lastRow = sheet.getLastRow();
+    if (lastRow < 2) return 0;
+    var vals = sheet.getRange(2, refCol + 1, lastRow - 1, 1).getValues();
+    var seen = {};
+    var toDelete = [];
+    for (var r = 0; r < vals.length; r++) {
+      var v = String(vals[r][0]).trim();
+      if (v === '') continue;
+      if (seen[v]) {
+        toDelete.push(r + 2); // sheet row (1-based; header is row 1)
+      } else {
+        seen[v] = true;
+      }
+    }
+    // Delete bottom-up so earlier row indexes stay valid.
+    toDelete.sort(function (a, b) { return b - a; });
+    for (var d = 0; d < toDelete.length; d++) {
+      sheet.deleteRow(toDelete[d]);
+    }
+    Logger.log('cleanupDuplicateRefs: removed ' + toDelete.length + ' duplicate rows');
+    return toDelete.length;
+  } catch (err) {
+    Logger.log('cleanupDuplicateRefs error: ' + err);
+    return -1;
+  }
+}
+
+function installCleanupTrigger() {
+  var triggers = ScriptApp.getProjectTriggers();
+  triggers.forEach(function (t) {
+    if (t.getHandlerFunction() === 'cleanupDuplicateRefs') ScriptApp.deleteTrigger(t);
+  });
+  ScriptApp.newTrigger('cleanupDuplicateRefs')
+    .timeBased()
+    .everyDays(1)
+    .atHour(3)
+    .create();
+  Logger.log('cleanup trigger installed (daily 3 AM).');
+}
+
+// Maintenance helper: removes test/diagnostic rows from the live sheet
+// (used by the Advanced menu and by the dev workflow after endpoint tests).
+function deleteTestRows() {
+  try {
+    var sheet = SpreadsheetApp.getActiveSheet();
+    var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+    var refCol = -1;
+    for (var i = 0; i < headers.length; i++) {
+      if (String(headers[i]).indexOf('Reference Number') !== -1) { refCol = i; break; }
+    }
+    if (refCol === -1) return 0;
+    var lastRow = sheet.getLastRow();
+    if (lastRow < 2) return 0;
+    var vals = sheet.getRange(2, refCol + 1, lastRow - 1, 1).getValues();
+    var toDelete = [];
+    var prefixes = ['REFTEST-', 'DEDUPE-TEST-', 'VERIFY-', 'AUDIT-'];
+    for (var r = 0; r < vals.length; r++) {
+      var v = String(vals[r][0]);
+      for (var p = 0; p < prefixes.length; p++) {
+        if (v.indexOf(prefixes[p]) === 0) { toDelete.push(r + 2); break; }
+      }
+    }
+    toDelete.sort(function (a, b) { return b - a; });
+    for (var d = 0; d < toDelete.length; d++) {
+      sheet.deleteRow(toDelete[d]);
+    }
+    Logger.log('deleteTestRows: removed ' + toDelete.length + ' rows');
+    return toDelete.length;
+  } catch (err) {
+    Logger.log('deleteTestRows error: ' + err);
+    return -1;
+  }
 }

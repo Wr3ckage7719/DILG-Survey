@@ -36,7 +36,10 @@ function onOpen() {
     .addItem('Fix Template Layout', 'repairTemplate')
     .addSeparator()
     .addItem('Diagnose Deployment', 'checkDeployment')
-    .addItem('Test Merge (English) — Selected Row', 'testMergeRow');
+    .addItem('Test Merge (English) — Selected Row', 'testMergeRow')
+    .addSeparator()
+    .addItem('Remove Duplicate Reference Numbers', 'cleanupDuplicateRefs')
+    .addItem('Delete Test Rows', 'deleteTestRows');
 
   ui.createMenu('DILG Survey')
     .addItem('Create / Update Google Form', 'createOrUpdateForm')
@@ -213,6 +216,8 @@ function installTriggers() {
   // Keep the web app deployment warm so survey POSTs never hit the ~27-40s
   // cold start (see keepWarm in WebEndpoint.js).
   installKeepWarmTrigger();
+  // Daily safety net that removes any duplicate Reference Number rows.
+  installCleanupTrigger();
 
-  Logger.log('onFormSubmit + keepWarm triggers installed.');
+  Logger.log('onFormSubmit + keepWarm + cleanup triggers installed.');
 }

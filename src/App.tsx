@@ -12,6 +12,8 @@ import {
   validateEmail,
   validatePhone,
   warmUpSubmitEndpoint,
+  checkRefSaved,
+  type SubmitResult,
 } from './api/submit';
 import { LanguageProvider, useLang } from './i18n/LanguageContext';
 import type { TranslationKey } from './i18n/translations';
@@ -234,44 +236,62 @@ function Survey() {
     const slowTimer = setTimeout(() => setSubmitStage('slow'), 5_000);
     const verySlowTimer = setTimeout(() => setSubmitStage('verySlow'), 15_000);
 
-    let result = await submitSurvey(form, ref, lang);
+    try {
+      let result = await submitSurvey(form, ref, lang);
 
-    // Single auto-retry with the SAME refNumber (the Apps Script dedupes by it,
-    // so a retry can never create a duplicate row):
-    // - submit_failed (Vercel → Apps Script) → retry in 2s
-    // - fetch_error (client timeout) → the first request may still be waking the
-    //   cold Apps Script instance; wait longer so the retry lands when it is
-    //   warm and completes quickly. The row may already be saved — the dedupe
-    //   turns the retry into a harmless confirmation.
-    // - rate_limit → a recent success for this IP means the row may already
-    //   exist; wait out the server cooldown, then the dedupe confirms it.
-    if (!result.ok) {
-      const waitMs =
-        result.code === 'rate_limit' ? 16_000
-        : result.code === 'fetch_error' ? 25_000
-        : 2_000;
-      await new Promise((r) => setTimeout(r, waitMs));
-      result = await submitSurvey(form, ref, lang, { isRetry: true });
-    }
+      // Single auto-retry with the SAME refNumber (the Apps Script dedupes by it,
+      // so a retry can never create a duplicate row):
+      // - submit_failed (Vercel → Apps Script) → retry in 2s
+      // - fetch_error (client timeout) → the first request may still be waking the
+      //   cold Apps Script instance; wait longer so the retry lands when it is
+      //   warm and completes quickly. The row may already be saved — the dedupe
+      //   turns the retry into a harmless confirmation.
+      // - rate_limit → a recent success for this IP means the row may already
+      //   exist; wait out the server cooldown, then the dedupe confirms it.
+      if (!result.ok) {
+        const waitMs =
+          result.code === 'rate_limit' ? 16_000
+          : result.code === 'fetch_error' ? 25_000
+          : 2_000;
+        await new Promise((r) => setTimeout(r, waitMs));
+        result = await submitSurvey(form, ref, lang, { isRetry: true });
+      }
 
-    // A rate_limit on the RETRY means a save from this IP succeeded within the
-    // cooldown window. Since this retry reuses our own refNumber, that save is
-    // our row — the dedupe guarantees it — so treat it as a confirmed success.
-    if (!result.ok && result.code === 'rate_limit') {
-      result = { ok: true, refNumber: ref };
-    }
+      // A rate_limit on the RETRY means a save from this IP succeeded within the
+      // cooldown window. Since this retry reuses our own refNumber, that save is
+      // our row — the dedupe guarantees it — so treat it as a confirmed success.
+      if (!result.ok && result.code === 'rate_limit') {
+        result = { ok: true, refNumber: ref };
+      }
 
-    clearTimeout(slowTimer);
-    clearTimeout(verySlowTimer);
-    setSubmitting(false);
-    submittingRef.current = false;
+      // Final safety net: if everything above failed but the row actually saved
+      // (lost response after a cold start), confirm it via the ?ref= lookup so a
+      // recorded survey can never be shown as an error — the whole point of the
+      // hardening pass. No duplicate is created: the lookup is read-only.
+      if (!result.ok) {
+        let saved = false;
+        try {
+          saved = await checkRefSaved(ref);
+        } catch {
+          saved = false;
+        }
+        if (saved) {
+          result = { ok: true, refNumber: ref };
+        }
+      }
 
-    if (result.ok) {
-      setSubmitted(true);
-      toast.success(t('toast.submitted'));
-    } else {
-      navigator.vibrate?.([120, 60, 120]);
-      toast.error(result.error || t('toast.failed'));
+      if (result.ok) {
+        setSubmitted(true);
+        toast.success(t('toast.submitted'));
+      } else {
+        navigator.vibrate?.([120, 60, 120]);
+        toast.error(result.error || t('toast.failed'));
+      }
+    } finally {
+      clearTimeout(slowTimer);
+      clearTimeout(verySlowTimer);
+      setSubmitting(false);
+      submittingRef.current = false;
     }
   };
 

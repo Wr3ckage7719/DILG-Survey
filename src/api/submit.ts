@@ -66,6 +66,21 @@ export function isHoneypotFilled(value: string): boolean {
   return value.trim().length > 0;
 }
 
+/* ─── Saved-confirmation check ─── */
+// Asks the server whether a reference number was actually recorded. Used as the
+// final safety net: when a POST fails or times out, the row may still have been
+// saved server-side (lost response after a cold start). If this returns true,
+// the user gets the success screen instead of a false error.
+export async function checkRefSaved(ref: string): Promise<boolean> {
+  try {
+    const res = await fetch(`/api/submit?ref=${encodeURIComponent(ref)}`, { method: 'GET' });
+    const json = await res.json().catch(() => null);
+    return !!(json && json.saved);
+  } catch {
+    return false;
+  }
+}
+
 /* ─── Map server error codes → localized messages ─── */
 function mapServerError(
   json: { ok?: boolean; error?: string; retryIn?: number },

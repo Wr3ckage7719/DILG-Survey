@@ -290,7 +290,39 @@ export default async function handler(
   // Warm-up: the client pings this with GET on page load and before submit
   // to keep the function + Apps Script instance warm (cold start ≈ 27-40s).
   // Best-effort — failures are non-fatal. Bounded by WARMUP_TIMEOUT_MS.
+  // With ?ref= it doubles as the saved-confirmation check: the client asks
+  // "was this reference number recorded?" when a POST response was lost.
   if (req.method === 'GET') {
+    const query = new URL(req.url ?? '/', 'http://localhost').searchParams;
+    const ref = query.get('ref');
+    if (ref) {
+      if (!APPS_SCRIPT_URL) {
+        sendError(res, 500, 'server_config_error');
+        return;
+      }
+      try {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), WARMUP_TIMEOUT_MS);
+        const up = await fetch(`${APPS_SCRIPT_URL}?ref=${encodeURIComponent(ref)}`, {
+          method: 'GET',
+          signal: controller.signal,
+        });
+        const text = await up.text().catch(() => '');
+        clearTimeout(timer);
+        let parsed: { saved?: boolean } | null = null;
+        try {
+          parsed = text ? JSON.parse(text) : null;
+        } catch {
+          parsed = null;
+        }
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, saved: !!(parsed && parsed.saved) }));
+      } catch {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, saved: false }));
+      }
+      return;
+    }
     if (APPS_SCRIPT_URL) {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), WARMUP_TIMEOUT_MS);
