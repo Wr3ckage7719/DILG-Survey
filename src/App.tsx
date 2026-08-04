@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { toast } from 'sonner';
 import { ArrowRight, ChevronDown, ChevronLeft } from 'lucide-react';
@@ -11,6 +11,7 @@ import {
   isHoneypotFilled,
   validateEmail,
   validatePhone,
+  warmUpSubmitEndpoint,
 } from './api/submit';
 import { LanguageProvider, useLang } from './i18n/LanguageContext';
 import type { TranslationKey } from './i18n/translations';
@@ -64,14 +65,14 @@ function validate(sectionId: string, form: FormData): string[] {
   });
 }
 
-function validateFeedbackSection(form: FormData, t: (key: TranslationKey) => string): string | null {
-  if (form.emailAddress && !validateEmail(form.emailAddress)) {
-    return t('validation.email');
-  }
-  if (form.contactNumber && !validatePhone(form.contactNumber)) {
-    return t('validation.phone');
-  }
-  return null;
+/** SQD items that must be answered; index 5 (N/A preset) auto-passes. */
+const SQD_REQUIRED_INDEXES = [0, 1, 2, 3, 4, 6, 7, 8];
+
+function validateFeedbackSection(form: FormData): Record<string, boolean> {
+  const map: Record<string, boolean> = {};
+  if (form.emailAddress && !validateEmail(form.emailAddress)) map.emailAddress = true;
+  if (form.contactNumber && !validatePhone(form.contactNumber)) map.contactNumber = true;
+  return map;
 }
 
 type Screen = 'landing' | 'language' | 'form';
@@ -94,16 +95,25 @@ function Survey() {
   const [consentChecked, setConsentChecked] = useState(false);
   const [errors, setErrors] = useState<Record<string, boolean>>({});
   const [shaking, setShaking] = useState(false);
-  const [refNumber, setRefNumber] = useState<string>('');
   const [privacyExpanded, setPrivacyExpanded] = useState(false);
   const honeypotRef = useRef<HTMLInputElement>(null);
+  const submittingRef = useRef(false);
   const prefersReduced = useReducedMotion();
 
   const update = useCallback((patch: Partial<FormData>) => {
     setForm((f) => ({ ...f, ...patch }));
     setErrors((prev) => {
       const patchKey = Object.keys(patch)[0];
-      if (!patchKey || !prev[patchKey]) return prev;
+      if (!patchKey) return prev;
+      // SQD items are keyed individually (sqd0..sqd8) — clear them all.
+      if (patchKey === 'sqd') {
+        const next = { ...prev };
+        for (const k of Object.keys(next)) {
+          if (k.startsWith('sqd')) delete next[k];
+        }
+        return next;
+      }
+      if (!prev[patchKey]) return prev;
       const next = { ...prev };
       delete next[patchKey];
       return next;
@@ -113,6 +123,16 @@ function Survey() {
   const sectionId = SECTIONS[sectionIdx];
   const total = SECTIONS.length;
   const isLast = sectionIdx === total - 1;
+
+  // Warm the submit path (Vercel function + Apps Script) so the final POST
+  // doesn't hit the ~27s Apps Script cold start on the first try.
+  useEffect(() => {
+    warmUpSubmitEndpoint();
+  }, []);
+
+  useEffect(() => {
+    if (sectionId === 'feedback') warmUpSubmitEndpoint();
+  }, [sectionId]);
 
   const scrollToFirstError = (keys: string[]) => {
     const firstKey = keys[0];
@@ -148,13 +168,39 @@ function Survey() {
       const errorMap: Record<string, boolean> = {};
       errorKeys.forEach((key) => { errorMap[key] = true; });
       setErrors(errorMap);
+      setShaking(true);
+      setTimeout(() => setShaking(false), 400);
       scrollToFirstError(errorKeys);
       return;
     }
 
-    // Validate email/phone format
-    const feedbackErr = validateFeedbackSection(form, t);
-    if (feedbackErr) {
+    // SQD: every item except the N/A preset must be answered
+    if (sectionId === 'sqd') {
+      const missing = SQD_REQUIRED_INDEXES.filter((i) => !form.sqd[i] || form.sqd[i].trim() === '');
+      if (missing.length > 0) {
+        const errorMap: Record<string, boolean> = { sqd: true };
+        missing.forEach((i) => { errorMap[`sqd${i}`] = true; });
+        setErrors(errorMap);
+        setShaking(true);
+        setTimeout(() => setShaking(false), 400);
+        scrollToFirstError(missing.map((i) => `sqd${i}`));
+        toast.error(t('sqd.error'));
+        return;
+      }
+    }
+
+    // Validate email/phone format — inline errors + toast instead of a silent dead-end
+    const feedbackErrors = validateFeedbackSection(form);
+    if (Object.keys(feedbackErrors).length > 0) {
+      setErrors(feedbackErrors);
+      setShaking(true);
+      setTimeout(() => setShaking(false), 400);
+      scrollToFirstError(Object.keys(feedbackErrors));
+      const msg = [
+        feedbackErrors.emailAddress ? t('validation.email') : '',
+        feedbackErrors.contactNumber ? t('validation.phone') : '',
+      ].filter(Boolean).join(' · ');
+      toast.error(msg);
       return;
     }
 
@@ -166,14 +212,25 @@ function Survey() {
     }
 
     setErrors({});
+
+    // Guard against double-submits from fast taps
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     setSubmitting(true);
 
-    // Generate reference number for audit trail
+    // Generate reference number for audit trail (kept in payload only)
     const ref = generateRefNumber();
-    setRefNumber(ref);
 
-    const result = await submitSurvey(form, ref, lang);
+    let result = await submitSurvey(form, ref, lang);
+
+    // Single auto-retry for cold-start timeouts, then surface the error
+    if (!result.ok && result.code === 'submit_failed') {
+      await new Promise((r) => setTimeout(r, 2000));
+      result = await submitSurvey(form, ref, lang, { isRetry: true });
+    }
+
     setSubmitting(false);
+    submittingRef.current = false;
 
     if (result.ok) {
       setSubmitted(true);
@@ -189,11 +246,12 @@ function Survey() {
       case 'office': return <StepOffice form={form} onChange={update} errors={errors} />;
       case 'demographics': return <StepDemographics form={form} onChange={update} errors={errors} />;
       case 'cc': return <SectionCC form={form} onChange={update} errors={errors} />;
-      case 'sqd': return <SectionSQD form={form} onChange={update} />;
+      case 'sqd': return <SectionSQD form={form} onChange={update} errors={errors} />;
       case 'feedback': return (
         <SectionFeedback
           form={form}
           onChange={update}
+          errors={errors}
           honeypotRef={honeypotRef}
         />
       );
@@ -213,7 +271,7 @@ function Survey() {
             />
 
             {/* Form code */}
-            <p className="text-xs text-muted-foreground">FM-SP-DILG-07-07B</p>
+            <p className="text-xs text-muted-foreground">FM-SP-DILG-07-07</p>
 
             {/* Title */}
             <h1 className="text-2xl font-extrabold text-foreground tracking-tight">
@@ -340,19 +398,6 @@ function Survey() {
             <p className="text-muted-foreground text-sm">
               {t('done.message')}
             </p>
-            {refNumber && (
-              <div className="mt-4 rounded-xl bg-muted/50 border border-border px-4 py-3 text-center">
-                <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">
-                  {t('done.refLabel')}
-                </p>
-                <p className="text-sm font-mono font-bold text-primary select-all">
-                  {refNumber}
-                </p>
-                <p className="text-[10px] text-muted-foreground mt-1">
-                  {t('done.refHint')}
-                </p>
-              </div>
-            )}
           </CardContent>
         </Card>
       </div>

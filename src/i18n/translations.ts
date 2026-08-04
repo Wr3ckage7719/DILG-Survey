@@ -35,8 +35,6 @@ const tl = {
   // Thank-you screen
   'done.title': 'Maraming Salamat!',
   'done.message': 'Ang inyong tugon ay makatutulong sa pagpapabuti ng serbisyo publiko.',
-  'done.refLabel': 'Reference Number',
-  'done.refHint': 'Pakitago ang numerong ito para sa inyong talaan.',
 
   // Step indicator
   'indicator.office': 'Tanggapan',
@@ -77,6 +75,7 @@ const tl = {
   // SQD section
   'sqd.instructions': 'Panuto',
   'sqd.instructionsText': 'Lagyan ng tsek (\u2713) ang hanay na pinakaangkop sa iyong sagot.',
+  'sqd.error': 'Pakisagutan ang lahat ng mga tanong (maliban sa N/A kung naaangkop).',
 
   // Feedback section
   'feedback.suggestions': 'Mga mungkahi',
@@ -124,8 +123,6 @@ const en: Record<TranslationKey, string> = {
   // Thank-you screen
   'done.title': 'Thank you!',
   'done.message': 'Your response will help improve public service.',
-  'done.refLabel': 'Reference Number',
-  'done.refHint': 'Please keep this number for your records.',
 
   // Step indicator
   'indicator.office': 'Office',
@@ -168,6 +165,7 @@ const en: Record<TranslationKey, string> = {
   'sqd.instructions': 'Instructions',
   'sqd.instructionsText':
     'For the following items, put a check mark on the column that best describes your satisfaction level.',
+  'sqd.error': 'Please answer all items (except where N/A applies).',
 
   // Feedback section
   'feedback.suggestions': 'Suggestions',

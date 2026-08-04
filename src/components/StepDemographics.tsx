@@ -104,8 +104,9 @@ function RadioGroupBlock(props: {
   const isSelected = (option: string) => props.value === option;
   return (
     <fieldset
-      className="space-y-3"
+      className={cn('space-y-3', hasError && 'rounded-2xl ring-2 ring-destructive/60 ring-offset-2')}
       data-error-field={props.errorKey}
+      aria-invalid={hasError || undefined}
     >
       <label className="text-[15px] font-semibold text-foreground">
         {props.label}
@@ -113,9 +114,8 @@ function RadioGroupBlock(props: {
       </label>
       <RadioGroup value={props.value} onValueChange={props.onChange}>
         {props.options.map((o) => (
-        <div
+        <label
           key={o}
-          onClick={() => props.onChange(o)}
           className={cn(
             'flex items-center gap-3.5 rounded-2xl border px-5 py-3.5 cursor-pointer transition-colors duration-200 text-[15px]',
             isSelected(o)
@@ -123,13 +123,13 @@ function RadioGroupBlock(props: {
               : 'border-border/80 bg-card hover:bg-accent/5 hover:border-border',
           )}
         >
-            <RadioGroupItem value={o} className="pointer-events-none" />
+            <RadioGroupItem value={o} />
             <span className="text-sm flex-1 leading-relaxed">{o}</span>
-          </div>
+          </label>
         ))}
       </RadioGroup>
       {hasError && (
-        <p className="text-xs text-destructive/70 pl-1">{props.errorText}</p>
+        <p role="alert" className="text-xs text-destructive pl-1">{props.errorText}</p>
       )}
     </fieldset>
   );

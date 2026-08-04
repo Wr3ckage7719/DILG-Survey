@@ -27,8 +27,7 @@
     <!-- Security: prevent MIME-type sniffing -->
     <meta http-equiv="X-Content-Type-Options" content="nosniff">
 
-    <!-- Security: prevent clickjacking -->
-    <meta http-equiv="X-Frame-Options" content="DENY">
+    <!-- Security: prevent clickjacking (X-Frame-Options via HTTP header in vercel.json — meta is ignored by browsers) -->
 
     <!-- Security: referrer policy -->
     <meta name="referrer" content="strict-origin-when-cross-origin">

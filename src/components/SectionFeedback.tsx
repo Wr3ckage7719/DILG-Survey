@@ -3,14 +3,16 @@ import { useLang } from '../i18n/LanguageContext';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Separator } from '@/components/ui/separator';
+import { cn } from '@/lib/utils';
 
 interface Props {
   form: FormData;
   onChange: (patch: Partial<FormData>) => void;
+  errors?: Record<string, boolean>;
   honeypotRef?: React.Ref<HTMLInputElement>;
 }
 
-export default function SectionFeedback({ form, onChange, honeypotRef }: Props) {
+export default function SectionFeedback({ form, onChange, errors = {}, honeypotRef }: Props) {
   const { t } = useLang();
   return (
     <div className="space-y-7">
@@ -33,16 +35,22 @@ export default function SectionFeedback({ form, onChange, honeypotRef }: Props) 
         <p className="text-[15px] text-muted-foreground">
           {t('feedback.suggestionsPrompt')}
         </p>
-        <Textarea
-          placeholder={t('feedback.suggestionsPlaceholder')}
-          value={form.mgaMungkahi}
-          onChange={(e) => onChange({ mgaMungkahi: e.target.value })}
-          className="min-h-[140px] rounded-xl resize-none"
-          maxLength={2000}
-        />
-        <p className="text-[10px] text-right text-muted-foreground">
-          {form.mgaMungkahi.length}/2000
-        </p>
+        <div className="space-y-1.5">
+          <label htmlFor="fb-suggestions" className="sr-only">
+            {t('feedback.suggestions')}
+          </label>
+          <Textarea
+            id="fb-suggestions"
+            placeholder={t('feedback.suggestionsPlaceholder')}
+            value={form.mgaMungkahi}
+            onChange={(e) => onChange({ mgaMungkahi: e.target.value })}
+            className="min-h-[140px] rounded-xl resize-none"
+            maxLength={2000}
+          />
+          <p className="text-[10px] text-right text-muted-foreground">
+            {form.mgaMungkahi.length}/2000
+          </p>
+        </div>
       </div>
 
       <Separator className="my-2" />
@@ -54,8 +62,11 @@ export default function SectionFeedback({ form, onChange, honeypotRef }: Props) 
         </div>
 
         <fieldset className="space-y-2">
-          <label className="text-[15px] font-semibold text-foreground">{t('feedback.nameLabel')}</label>
+          <label htmlFor="fb-name" className="text-[15px] font-semibold text-foreground">
+            {t('feedback.nameLabel')}
+          </label>
           <Input
+            id="fb-name"
             value={form.pangalan}
             onChange={(e) => onChange({ pangalan: e.target.value })}
             placeholder={t('feedback.namePlaceholder')}
@@ -63,28 +74,50 @@ export default function SectionFeedback({ form, onChange, honeypotRef }: Props) 
             maxLength={100}
           />
         </fieldset>
-        <fieldset className="space-y-2">
-          <label className="text-[15px] font-semibold text-foreground">{t('feedback.contactLabel')}</label>
+
+        <fieldset className="space-y-2" data-error-field="contactNumber">
+          <label htmlFor="fb-contact" className="text-[15px] font-semibold text-foreground">
+            {t('feedback.contactLabel')}
+          </label>
           <Input
+            id="fb-contact"
             value={form.contactNumber}
             onChange={(e) => onChange({ contactNumber: e.target.value })}
             placeholder={t('feedback.contactPlaceholder')}
-            className="rounded-xl"
+            className={cn('rounded-xl', errors.contactNumber && 'border-destructive')}
             maxLength={20}
             inputMode="tel"
+            aria-invalid={errors.contactNumber || undefined}
+            aria-describedby={errors.contactNumber ? 'fb-contact-error' : undefined}
           />
+          {errors.contactNumber && (
+            <p id="fb-contact-error" role="alert" className="text-xs text-destructive pl-1">
+              {t('validation.phone')}
+            </p>
+          )}
         </fieldset>
-        <fieldset className="space-y-2">
-          <label className="text-[15px] font-semibold text-foreground">{t('feedback.emailLabel')}</label>
+
+        <fieldset className="space-y-2" data-error-field="emailAddress">
+          <label htmlFor="fb-email" className="text-[15px] font-semibold text-foreground">
+            {t('feedback.emailLabel')}
+          </label>
           <Input
+            id="fb-email"
             type="email"
             value={form.emailAddress}
             onChange={(e) => onChange({ emailAddress: e.target.value })}
             placeholder={t('feedback.emailPlaceholder')}
-            className="rounded-xl"
+            className={cn('rounded-xl', errors.emailAddress && 'border-destructive')}
             maxLength={200}
             inputMode="email"
+            aria-invalid={errors.emailAddress || undefined}
+            aria-describedby={errors.emailAddress ? 'fb-email-error' : undefined}
           />
+          {errors.emailAddress && (
+            <p id="fb-email-error" role="alert" className="text-xs text-destructive pl-1">
+              {t('validation.email')}
+            </p>
+          )}
         </fieldset>
       </div>
     </div>

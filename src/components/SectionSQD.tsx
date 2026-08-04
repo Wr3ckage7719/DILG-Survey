@@ -5,9 +5,10 @@ import { useLang } from '../i18n/LanguageContext';
 interface Props {
   form: FormData;
   onChange: (patch: Partial<FormData>) => void;
+  errors?: Record<string, boolean>;
 }
 
-export default function SectionSQD({ form, onChange }: Props) {
+export default function SectionSQD({ form, onChange, errors = {} }: Props) {
   const { t } = useLang();
   return (
     <div className="space-y-8">
@@ -17,8 +18,15 @@ export default function SectionSQD({ form, onChange }: Props) {
           {t('sqd.instructionsText')}
         </p>
       </div>
+
+      {errors.sqd && (
+        <p role="alert" className="rounded-xl border border-destructive/40 bg-destructive/5 px-4 py-2.5 text-sm text-destructive">
+          {t('sqd.error')}
+        </p>
+      )}
+
       {Array.from({ length: 9 }, (_, i) => (
-        <StepSQD key={i} index={i} form={form} onChange={onChange} />
+        <StepSQD key={i} index={i} form={form} onChange={onChange} error={errors[`sqd${i}`]} />
       ))}
     </div>
   );

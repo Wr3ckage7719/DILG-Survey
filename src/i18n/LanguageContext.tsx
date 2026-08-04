@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import type { Language } from '../types';
 import { translations, type TranslationKey } from './translations';
 
@@ -12,6 +12,12 @@ const LanguageContext = createContext<LanguageContextValue | null>(null);
 
 export function LanguageProvider({ children }: { children: ReactNode }) {
   const [lang, setLang] = useState<Language>('tl');
+
+  // Keep the page language declaration in sync so screen readers use the
+  // correct phonetics/pronunciation for the active UI language (WCAG 3.1.1).
+  useEffect(() => {
+    document.documentElement.lang = lang;
+  }, [lang]);
 
   const t = useCallback(
     (key: TranslationKey) => translations[lang][key],

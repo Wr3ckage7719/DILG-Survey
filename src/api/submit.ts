@@ -9,6 +9,14 @@ import { translations } from '../i18n/translations';
 const SUBMIT_COOLDOWN_MS = 15_000;
 let lastSubmitTime = 0;
 
+/* ─── Warm-up (kills the Apps Script cold start) ─── */
+// The Google Apps Script web app takes ~27s to wake from cold. A cheap GET
+// through /api/submit warms both the Vercel function and the Apps Script
+// instance so the real POST (~2-3s when warm) succeeds on the first try.
+export function warmUpSubmitEndpoint(): void {
+  fetch('/api/submit', { method: 'GET' }).catch(() => {});
+}
+
 /* ─── Text sanitization ─── */
 function sanitize(str: string): string {
   return str
@@ -76,21 +84,36 @@ function mapServerError(
 }
 
 /* ─── Main submit ─── */
+export interface SubmitResult {
+  ok: boolean;
+  refNumber: string;
+  error?: string;
+  /** Server error code (e.g. 'rate_limit', 'submit_failed') — used for retry decisions. */
+  code?: string;
+}
+
+export interface SubmitOptions {
+  /** Skip the client-side cooldown — used for the single auto-retry. */
+  isRetry?: boolean;
+}
+
 export async function submitSurvey(
   data: FormData,
   refNumber: string,
   lang: Language = 'tl',
-): Promise<{ ok: boolean; refNumber: string; error?: string }> {
+  opts: SubmitOptions = {},
+): Promise<SubmitResult> {
   const dict = translations[lang];
 
-  // Client-side rate limiting
+  // Client-side rate limiting (bypassed on the auto-retry)
   const now = Date.now();
-  if (now - lastSubmitTime < SUBMIT_COOLDOWN_MS) {
+  if (!opts.isRetry && now - lastSubmitTime < SUBMIT_COOLDOWN_MS) {
     const remaining = Math.ceil((SUBMIT_COOLDOWN_MS - (now - lastSubmitTime)) / 1000);
     return {
       ok: false,
       refNumber,
       error: dict['error.rateLimit'].replace('{seconds}', String(remaining)),
+      code: 'rate_limit',
     };
   }
   lastSubmitTime = now;
@@ -106,12 +129,12 @@ export async function submitSurvey(
 
     const json = await res.json();
     if (!json.ok && json.error) {
-      return { ok: false, refNumber, error: mapServerError(json, dict) };
+      return { ok: false, refNumber, error: mapServerError(json, dict), code: json.error };
     }
-    return json;
+    return { ok: true, refNumber: json.refNumber || refNumber };
   } catch (e) {
     console.error('Submit failed:', e);
-    return { ok: false, refNumber, error: dict['toast.failed'] };
+    return { ok: false, refNumber, error: dict['toast.failed'], code: 'fetch_error' };
   }
 }
   

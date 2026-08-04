@@ -35,8 +35,9 @@ export default function StepCC({ num, form, onChange, errors }: Props) {
 
   return (
     <fieldset
-      className="space-y-3"
+      className={cn('space-y-3', hasError && 'rounded-2xl ring-2 ring-destructive/60 ring-offset-2')}
       data-error-field={key}
+      aria-invalid={hasError || undefined}
     >
       <p className="text-[15px] font-semibold leading-relaxed text-foreground">
         {title}
@@ -48,9 +49,8 @@ export default function StepCC({ num, form, onChange, errors }: Props) {
         {options.map((o, i) => {
           const isSelected = displayValue === o;
           return (
-          <div
+          <label
             key={i}
-            onClick={() => onChange({ [key]: o } as Partial<FormData>)}
             className={cn(
               'flex items-start gap-3.5 rounded-2xl border px-5 py-3.5 cursor-pointer transition-colors duration-200 text-[15px]',
               isSelected
@@ -58,14 +58,14 @@ export default function StepCC({ num, form, onChange, errors }: Props) {
                 : 'border-border/80 bg-card hover:bg-accent/5 hover:border-border',
             )}
           >
-              <RadioGroupItem value={o} className="mt-0.5 pointer-events-none" />
+              <RadioGroupItem value={o} className="mt-0.5" />
               <span className="text-sm flex-1 leading-relaxed">{o}</span>
-            </div>
+            </label>
           );
         })}
       </RadioGroup>
       {hasError && (
-        <p className="text-xs text-destructive/70 pl-1">{t('cc.select')}</p>
+        <p role="alert" className="text-xs text-destructive pl-1">{t('cc.select')}</p>
       )}
     </fieldset>
   );

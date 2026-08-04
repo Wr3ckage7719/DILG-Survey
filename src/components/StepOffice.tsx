@@ -91,10 +91,11 @@ export default function StepOffice({ form, onChange, errors }: Props) {
       {(form.serbisyongIbinigay === 'Other/s (Tukuyin ang iba pang serbisyo)' ||
         form.serbisyongIbinigay === 'Other/s (Specify other service)') && (
         <div className="ml-2 pl-4 border-l-2 border-accent/20">
-          <label className="block text-[15px] font-medium text-foreground mb-1.5">
+          <label htmlFor="fb-other-service" className="block text-[15px] font-medium text-foreground mb-1.5">
             {t('office.other')}
           </label>
           <Input
+            id="fb-other-service"
             placeholder={t('office.otherPlaceholder')}
             value={form.serbisyongIba}
             onChange={(e) => onChange({ serbisyongIba: e.target.value })}
