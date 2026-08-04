@@ -23,24 +23,33 @@ var TEMPLATE_FOLDER_NAME = 'DILG Survey Templates';
 
 function onOpen() {
   var ui = SpreadsheetApp.getUi();
-  ui.createMenu('DILG Survey')
-    .addItem('Create / Update Google Form', 'createOrUpdateForm')
+
+  // Maintenance/dev-only tools live in the Advanced submenu so the main menu
+  // stays beginner-friendly (only the everyday actions are shown).
+  var advanced = ui.createMenu('Advanced')
     .addItem('Generate Template Document', 'generateTemplateDoc')
-    .addItem('Verify Template', 'verifyTemplate')
-    .addItem('Fix Template Layout', 'repairTemplate')
-    .addSeparator()
     .addItem('Prepare English Template', 'injectEnglishPlaceholders')
     .addItem('Reset English Template', 'stripTemplatePlaceholders')
+    .addSeparator()
+    .addItem('Verify Template', 'verifyTemplate')
     .addItem('Verify English Template', 'verifyEnglishTemplate')
+    .addItem('Fix Template Layout', 'repairTemplate')
+    .addSeparator()
+    .addItem('Diagnose Deployment', 'checkDeployment')
+    .addItem('Test Merge (English) — Selected Row', 'testMergeRow');
+
+  ui.createMenu('DILG Survey')
+    .addItem('Create / Update Google Form', 'createOrUpdateForm')
     .addSeparator()
     .addItem('Generate Printable Sheet (Selected Row)', 'chooseTemplateForSingle')
     .addItem('Batch Generate (Selected Rows)', 'chooseTemplateForBatch')
     .addSeparator()
     .addItem('Settings', 'showSettings')
     .addItem('Install Keep-Warm Trigger', 'installKeepWarmTrigger')
-    .addItem('Diagnose Deployment', 'checkDeployment')
-    .addItem('Test Merge (English) — Selected Row', 'testMergeRow')
+    .addSeparator()
     .addItem('About / Help', 'showAbout')
+    .addSeparator()
+    .addSubMenu(advanced)
     .addToUi();
 }
 
@@ -165,13 +174,19 @@ function showAbout() {
     'DILG Client Satisfaction Survey Automation',
     'Document Code: FM-SP-DILG-07-07B',
     '',
-    'Mga Kakayahan:',
+    'PAANO GAMITIN (How to use):',
+    '1. Una, i-click ang "Settings" at piliin ang template doc at output folder.',
+    '2. Piliin ang isang row ng sagot sa sheet.',
+    '3. I-click ang "Generate Printable Sheet (Selected Row)".',
+    '4. Para sa maraming sagot, piliin ang mga row at i-click ang "Batch Generate (Selected Rows)".',
+    '',
+    'Ang tool ay:',
     '✓ Auto-create Google Form (with CC conditional logic)',
     '✓ Link form responses to this sheet',
     '✓ Generate printable survey sheets from responses',
     '✓ Template-based merge (Google Doc → PDF)',
     '',
-    'Setup: Settings → piliin ang template doc at output folder.'
+    'Para sa maintenance at advanced tools, gamitin ang "Advanced" submenu.'
   ].join('\n');
 
   SpreadsheetApp.getUi().alert('About DILG Survey Tool', info, SpreadsheetApp.getUi().ButtonSet.OK);
