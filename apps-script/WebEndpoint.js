@@ -49,6 +49,14 @@ function installKeepWarmTrigger() {
   Logger.log('keepWarm trigger installed (every 5 minutes).');
 }
 
+// One menu action installs every time-based trigger the deployment needs:
+// keep-warm (every 5 min) + daily duplicate cleanup. Both are idempotent.
+function installAllTriggers() {
+  installKeepWarmTrigger();
+  installCleanupTrigger();
+  return 'Installed: keep-warm (every 5 min) + duplicate cleanup (daily 3 AM).';
+}
+
 function doPost(e) {
   try {
     var data = JSON.parse(e.postData.contents);
@@ -122,7 +130,7 @@ function doPost(e) {
         for (var r = 0; r < refValues.length; r++) {
           if (String(refValues[r][0]) === String(data.refNumber)) {
             Logger.log('dedupe: ref ' + data.refNumber + ' already recorded');
-            return okResponse(true);
+            return okResponse(true, Date.now() - t0);
           }
         }
       }
@@ -132,22 +140,22 @@ function doPost(e) {
       // instance) doing its own dedupe read can see this row right away.
       SpreadsheetApp.flush();
       Logger.log('doPost ok in ' + (Date.now() - t0) + 'ms ref=' + data.refNumber);
-      return okResponse(false);
+      return okResponse(false, Date.now() - t0);
     } finally {
       if (locked) lock.releaseLock();
     }
   } catch (err) {
     Logger.log('doPost error: ' + err);
-    return ContentService
-      .createTextOutput(JSON.stringify({ success: false, error: err.toString() }))
-      .setMimeType(ContentService.MimeType.JSON);
+    return jsonOut({ success: false, error: err.toString(), durationMs: Date.now() - t0 });
   }
 }
 
-function okResponse(dedupe) {
-  return ContentService
-    .createTextOutput(JSON.stringify(dedupe ? { success: true, dedupe: true } : { success: true }))
-    .setMimeType(ContentService.MimeType.JSON);
+function okResponse(dedupe, durationMs) {
+  return jsonOut(
+    dedupe
+      ? { success: true, dedupe: true, durationMs: durationMs }
+      : { success: true, durationMs: durationMs }
+  );
 }
 
 function getOrCreateHeaders(sheet, data) {
@@ -218,9 +226,36 @@ function doGet(e) {
   if (e && e.parameter && e.parameter.ref) {
     return lookupRefResponse(String(e.parameter.ref));
   }
+  // Status/diagnostics: GET .../exec?status=1 — shows whether the keep-warm and
+  // daily-cleanup triggers are installed (used by the dev workflow + health checks).
+  if (e && e.parameter && e.parameter.status) {
+    return jsonOut(triggerStatus());
+  }
   return ContentService
     .createTextOutput('DILG Survey Web Endpoint is running.')
     .setMimeType(ContentService.MimeType.TEXT);
+}
+
+function triggerStatus() {
+  var hasKeepWarm = false;
+  var hasCleanup = false;
+  try {
+    var triggers = ScriptApp.getProjectTriggers();
+    for (var i = 0; i < triggers.length; i++) {
+      var h = triggers[i].getHandlerFunction();
+      if (h === 'keepWarm') hasKeepWarm = true;
+      if (h === 'cleanupDuplicateRefs') hasCleanup = true;
+    }
+  } catch (err) {
+    Logger.log('triggerStatus error: ' + err);
+  }
+  return {
+    status: 'ok',
+    version: 'v7',
+    keepWarmTriggerInstalled: hasKeepWarm,
+    cleanupTriggerInstalled: hasCleanup,
+    time: new Date().toISOString(),
+  };
 }
 
 function lookupRefResponse(ref) {

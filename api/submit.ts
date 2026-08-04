@@ -234,43 +234,66 @@ function setCorsHeaders(res: ServerResponse, origin?: string): void {
 /* ─── Forward to Google Apps Script; only treat as success when the upstream
  * body explicitly confirms it ({ success: true } or { ok: true }). Apps Script
  * returns HTTP 200 even for its error branch, so an HTTP-only check could
- * silently lose a row. ─── */
-async function postToAppsScript(url: string, body: string): Promise<{ ok: boolean; detail: string }> {
+ * silently lose a row.
+ *
+ * Transient-failure retry: Google's edge intermittently returns 404/5xx when
+ * the web app instance is cold (measured in production) — sometimes AFTER the
+ * script already executed and wrote the row. Retrying the SAME body once after
+ * a short backoff is safe: the Apps Script dedupes by Reference Number, so a
+ * repeated write collapses to a single row (dedupe:true). ─── */
+async function postToAppsScript(url: string, body: string): Promise<{ ok: boolean; detail: string; upstreamMs: number }> {
+  const startedAt = Date.now();
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), UPSTREAM_TIMEOUT_MS);
-  try {
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body,
-      signal: controller.signal,
-    });
-    const text = await res.text().catch(() => '');
-    let parsed: { success?: boolean; ok?: boolean; error?: string } | null = null;
-    try {
-      parsed = text ? JSON.parse(text) : null;
-    } catch {
-      parsed = null;
+  let lastDetail = 'upstream_unreachable';
+
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    if (attempt > 1) {
+      // Small backoff — the 404/5xx is Google-edge-transient; a couple of
+      // seconds lets the instance/edge settle before the second attempt.
+      await new Promise((r) => setTimeout(r, 3_000));
     }
-    const confirmed =
-      res.ok && parsed && (parsed.success === true || parsed.ok === true);
-    if (confirmed) return { ok: true, detail: '' };
-    console.error(
-      'Apps Script did not confirm success:',
-      res.status,
-      (parsed && parsed.error) || text.slice(0, 300),
-    );
-    return {
-      ok: false,
-      detail: (parsed && parsed.error) || `upstream_http_${res.status}`,
-    };
-  } catch (err) {
-    const aborted = err && typeof err === 'object' && (err as { name?: string }).name === 'AbortError';
-    console.error('Forward to Apps Script failed:', aborted ? 'timeout' : err instanceof Error ? err.message : String(err));
-    return { ok: false, detail: aborted ? 'timeout' : 'fetch_error' };
-  } finally {
-    clearTimeout(timer);
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body,
+        signal: controller.signal,
+      });
+      const text = await res.text().catch(() => '');
+      let parsed: { success?: boolean; ok?: boolean; error?: string } | null = null;
+      try {
+        parsed = text ? JSON.parse(text) : null;
+      } catch {
+        parsed = null;
+      }
+      const confirmed = res.ok && parsed && (parsed.success === true || parsed.ok === true);
+      if (confirmed) {
+        console.log(`[upstream] ok attempt=${attempt} in ${Date.now() - startedAt}ms`);
+        return { ok: true, detail: '', upstreamMs: Date.now() - startedAt };
+      }
+      const detail = (parsed && parsed.error) || `upstream_http_${res.status}`;
+      console.error(
+        `[upstream] attempt=${attempt} not confirmed: status=${res.status} detail=${detail} in ${Date.now() - startedAt}ms`,
+      );
+      // 404 and 5xx are transient edge/instance failures — retry once.
+      if ((res.status === 404 || res.status >= 500) && attempt === 1) {
+        lastDetail = detail;
+        continue;
+      }
+      lastDetail = detail;
+      return { ok: false, detail: lastDetail, upstreamMs: Date.now() - startedAt };
+    } catch (err) {
+      const aborted = err && typeof err === 'object' && (err as { name?: string }).name === 'AbortError';
+      console.error(`[upstream] attempt=${attempt} failed:`, aborted ? 'timeout' : err instanceof Error ? err.message : String(err));
+      if (attempt === 1) {
+        lastDetail = aborted ? 'timeout' : 'fetch_error';
+        continue; // retry once on network/timeout errors too
+      }
+      return { ok: false, detail: aborted ? 'timeout' : 'fetch_error', upstreamMs: Date.now() - startedAt };
+    }
   }
+  return { ok: false, detail: lastDetail, upstreamMs: Date.now() - startedAt };
 }
 
 export default async function handler(
@@ -504,6 +527,7 @@ export default async function handler(
     JSON.stringify({
       ok: true,
       refNumber: form.refNumber,
+      upstreamMs: upstream.upstreamMs,
     }),
   );
 }

@@ -48,7 +48,7 @@ function onOpen() {
     .addItem('Batch Generate (Selected Rows)', 'chooseTemplateForBatch')
     .addSeparator()
     .addItem('Settings', 'showSettings')
-    .addItem('Install Keep-Warm Trigger', 'installKeepWarmTrigger')
+    .addItem('Install Keep-Warm + Cleanup Triggers', 'installAllTriggers')
     .addSeparator()
     .addItem('About / Help', 'showAbout')
     .addSeparator()
