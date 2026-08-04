@@ -9,6 +9,13 @@ import { translations } from '../i18n/translations';
 const SUBMIT_COOLDOWN_MS = 15_000;
 let lastSubmitTime = 0;
 
+/* ─── Client-side timeout ─── */
+// Cap how long the browser waits before the UI can react. The Vercel function
+// keeps running even after the browser aborts (up to its own 55s timeout), so
+// the row may still land — the retry reuses the SAME refNumber and the Apps
+// Script dedupe turns any late success into a no-op (never a duplicate).
+const SUBMIT_TIMEOUT_MS = 20_000;
+
 /* ─── Warm-up (kills the Apps Script cold start) ─── */
 // The Google Apps Script web app takes ~27s to wake from cold. A cheap GET
 // through /api/submit warms both the Vercel function and the Apps Script
@@ -120,20 +127,32 @@ export async function submitSurvey(
 
   try {
     const sanitized = sanitizeForm(data);
+    const startedAt = Date.now();
 
-    const res = await fetch('/api/submit', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...sanitized, refNumber, lang }),
-    });
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), SUBMIT_TIMEOUT_MS);
+    let json: { ok?: boolean; error?: string; refNumber?: string; retryIn?: number } | null = null;
+    try {
+      const res = await fetch('/api/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...sanitized, refNumber, lang }),
+        signal: controller.signal,
+      });
+      json = await res.json();
+    } finally {
+      clearTimeout(timer);
+    }
 
-    const json = await res.json();
-    if (!json.ok && json.error) {
+    if (json && !json.ok && json.error) {
+      console.debug(`[submit] failed in ${Date.now() - startedAt}ms code=${json.error}`);
       return { ok: false, refNumber, error: mapServerError(json, dict), code: json.error };
     }
-    return { ok: true, refNumber: json.refNumber || refNumber };
+    console.debug(`[submit] ok in ${Date.now() - startedAt}ms`);
+    return { ok: true, refNumber: json?.refNumber || refNumber };
   } catch (e) {
-    console.error('Submit failed:', e);
+    const aborted = e && typeof e === 'object' && (e as { name?: string }).name === 'AbortError';
+    console.error(`Submit failed${aborted ? ' (client timeout)' : ''}:`, e);
     return { ok: false, refNumber, error: dict['toast.failed'], code: 'fetch_error' };
   }
 }

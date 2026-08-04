@@ -96,6 +96,7 @@ function Survey() {
   const [errors, setErrors] = useState<Record<string, boolean>>({});
   const [shaking, setShaking] = useState(false);
   const [privacyExpanded, setPrivacyExpanded] = useState(false);
+  const [submitStage, setSubmitStage] = useState<'normal' | 'slow' | 'verySlow'>('normal');
   const honeypotRef = useRef<HTMLInputElement>(null);
   const submittingRef = useRef(false);
   const prefersReduced = useReducedMotion();
@@ -124,14 +125,20 @@ function Survey() {
   const total = SECTIONS.length;
   const isLast = sectionIdx === total - 1;
 
-  // Warm the submit path (Vercel function + Apps Script) so the final POST
-  // doesn't hit the ~27s Apps Script cold start on the first try.
+  // Warm the submit path (Vercel function + Apps Script) aggressively: on
+  // mount (the user spends time on the landing/language screens), on every
+  // step change, and on a 60s interval while the form is open. The server-side
+  // keep-warm trigger is the primary guard against the ~27s Apps Script cold
+  // start; this is the client-side belt-and-suspenders.
   useEffect(() => {
+    if (submitted) return;
     warmUpSubmitEndpoint();
-  }, []);
+    const id = setInterval(warmUpSubmitEndpoint, 60_000);
+    return () => clearInterval(id);
+  }, [submitted]);
 
   useEffect(() => {
-    if (sectionId === 'feedback') warmUpSubmitEndpoint();
+    warmUpSubmitEndpoint();
   }, [sectionId]);
 
   const scrollToFirstError = (keys: string[]) => {
@@ -217,18 +224,32 @@ function Survey() {
     if (submittingRef.current) return;
     submittingRef.current = true;
     setSubmitting(true);
+    setSubmitStage('normal');
 
-    // Generate reference number for audit trail (kept in payload only)
+    // Generate reference number (reused by the retry — the Apps Script dedupes
+    // by it, so retrying after a lost response can never create a duplicate).
     const ref = generateRefNumber();
+
+    // Progress messaging: reassure the client while they wait.
+    const slowTimer = setTimeout(() => setSubmitStage('slow'), 5_000);
+    const verySlowTimer = setTimeout(() => setSubmitStage('verySlow'), 15_000);
 
     let result = await submitSurvey(form, ref, lang);
 
-    // Single auto-retry for cold-start timeouts, then surface the error
-    if (!result.ok && result.code === 'submit_failed') {
-      await new Promise((r) => setTimeout(r, 2000));
+    // Single auto-retry with the SAME refNumber, on any failure:
+    // - submit_failed (Vercel → Apps Script) → retry in 2s
+    // - fetch_error (client 20s timeout) → the row may still land server-side;
+    //   the Apps Script dedupe makes the retry safe.
+    // - rate_limit → a recent success for this IP means the row may already
+    //   exist; wait out the server cooldown, then the dedupe confirms it.
+    if (!result.ok) {
+      const waitMs = result.code === 'rate_limit' ? 16_000 : 2_000;
+      await new Promise((r) => setTimeout(r, waitMs));
       result = await submitSurvey(form, ref, lang, { isRetry: true });
     }
 
+    clearTimeout(slowTimer);
+    clearTimeout(verySlowTimer);
     setSubmitting(false);
     submittingRef.current = false;
 
@@ -456,48 +477,67 @@ function Survey() {
 
       {/* Bottom nav */}
       <div className="fixed bottom-0 left-0 right-0 z-40 bg-background/90 backdrop-blur-md border-t border-border/40">
-        <div className="max-w-xl mx-auto p-4 flex gap-3 items-center">
-          {sectionIdx > 0 && (
-            <Button variant="outline" onClick={prev} className="flex-1">
-              <ChevronLeft className="w-4 h-4" />
-              {t('nav.back')}
-            </Button>
-          )}
-          {!isLast ? (
-            <MotionButton
-              onClick={next}
-              initial="rest"
-              whileHover="hover"
-              className="flex-1"
-            >
-              {t('nav.next')}
-              <motion.span
-                variants={slideArrowVariants}
-                transition={{ duration: 0.2, ease: 'easeOut' }}
-                className="overflow-hidden flex items-center"
+        <div className="max-w-xl mx-auto p-4">
+          {/* Progress messaging: only appears when the submit is taking long */}
+          <AnimatePresence>
+            {submitting && submitStage !== 'normal' && (
+              <motion.p
+                key={submitStage}
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="text-xs text-center text-muted-foreground mb-2 px-4"
               >
-                <ArrowRight className="w-4 h-4 shrink-0" />
-              </motion.span>
-            </MotionButton>
-          ) : (
-            <MotionButton
-              variant="accent"
-              onClick={handleSubmit}
-              disabled={submitting}
-              initial="rest"
-              whileHover="hover"
-              className="flex-1"
-            >
-              {submitting ? t('nav.submitting') : t('nav.submit')}
-              <motion.span
-                variants={slideArrowVariants}
-                transition={{ duration: 0.2, ease: 'easeOut' }}
-                className="overflow-hidden flex items-center"
+                {submitStage === 'verySlow'
+                  ? t('nav.submittingVerySlow')
+                  : t('nav.submittingSlow')}
+              </motion.p>
+            )}
+          </AnimatePresence>
+          <div className="flex gap-3 items-center">
+            {sectionIdx > 0 && (
+              <Button variant="outline" onClick={prev} className="flex-1">
+                <ChevronLeft className="w-4 h-4" />
+                {t('nav.back')}
+              </Button>
+            )}
+            {!isLast ? (
+              <MotionButton
+                onClick={next}
+                initial="rest"
+                whileHover="hover"
+                className="flex-1"
               >
-                <ArrowRight className="w-4 h-4 shrink-0" />
-              </motion.span>
-            </MotionButton>
-          )}
+                {t('nav.next')}
+                <motion.span
+                  variants={slideArrowVariants}
+                  transition={{ duration: 0.2, ease: 'easeOut' }}
+                  className="overflow-hidden flex items-center"
+                >
+                  <ArrowRight className="w-4 h-4 shrink-0" />
+                </motion.span>
+              </MotionButton>
+            ) : (
+              <MotionButton
+                variant="accent"
+                onClick={handleSubmit}
+                disabled={submitting}
+                initial="rest"
+                whileHover="hover"
+                className="flex-1"
+              >
+                {submitting ? t('nav.submitting') : t('nav.submit')}
+                <motion.span
+                  variants={slideArrowVariants}
+                  transition={{ duration: 0.2, ease: 'easeOut' }}
+                  className="overflow-hidden flex items-center"
+                >
+                  <ArrowRight className="w-4 h-4 shrink-0" />
+                </motion.span>
+              </MotionButton>
+            )}
+          </div>
         </div>
       </div>
 

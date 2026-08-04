@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <style>
+    body { font-family: 'Google Sans', Roboto, Arial, sans-serif; margin: 0; padding: 16px; color: #202124; }
+    h3 { margin: 0 0 16px 0; font-size: 16px; color: #1a73e8; }
+    .section { margin-bottom: 20px; padding: 12px; background: #f8f9fa; border-radius: 8px; }
+    label { display: block; font-size: 11px; font-weight: 600; color: #5f6368; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+    input, select { width: 100%; padding: 8px 10px; border: 1px solid #dadce0; border-radius: 4px; font-size: 13px; box-sizing: border-box; margin-bottom: 8px; }
+    input:focus { outline: none; border-color: #1a73e8; box-shadow: 0 0 0 2px rgba(26,115,232,0.2); }
+    button { width: 100%; padding: 10px; border: none; border-radius: 4px; font-size: 13px; font-weight: 500; cursor: pointer; margin-top: 4px; }
+    .btn-primary { background: #1a73e8; color: white; }
+    .btn-primary:hover { background: #1557b0; }
+    .btn-danger { background: #fff; color: #d93025; border: 1px solid #dadce0; }
+    .btn-danger:hover { background: #fce8e6; }
+    .info { font-size: 11px; color: #80868b; margin-top: 2px; }
+    .status { font-size: 12px; padding: 8px; border-radius: 4px; margin-top: 8px; display: none; }
+    .status.success { background: #e6f4ea; color: #137333; display: block; }
+    .status.error { background: #fce8e6; color: #c5221f; display: block; }
+    hr { border: none; border-top: 1px solid #e0e0e0; margin: 16px 0; }
+  </style>
+</head>
+<body>
+  <h3>DILG Survey — Settings</h3>
+
+  <div class="section">
+    <label>Google Form</label>
+    <div id="formUrl" class="info" style="margin-bottom:8px;">No form yet. Create one from menu.</div>
+    <button class="btn-primary" onclick="google.script.run.withSuccessHandler(showMsg).createOrUpdateForm()">
+      Create / Update Form
+    </button>
+  </div>
+
+  <div class="section">
+    <label>Template Document</label>
+    <input type="text" id="templateId" placeholder="Paste Google Doc ID here">
+    <div class="info">Paste existing template ID — or generate a new one below.</div>
+    <button class="btn-primary" style="margin-bottom:4px;" onclick="saveTemplate()">Save Template</button>
+    <button class="btn-primary" style="background:#34a853;" onclick="google.script.run.withSuccessHandler(function(url){document.getElementById('templateId').value='';showMsg('Template created: '+url,'success');}).generateTemplateDoc()">⚡ Auto-Generate Template</button>
+  </div>
+
+  <div class="section">
+    <label>English Template Document</label>
+    <input type="text" id="englishTemplateId" placeholder="Paste English Google Doc ID here">
+    <div class="info">For English-language responses. Convert your English copy to Google Docs (Drive &rarr; right-click &rarr; Open with &rarr; Google Docs), then paste its Doc ID here. Then run: DILG Survey &rarr; Prepare English Template.</div>
+    <button class="btn-primary" onclick="saveEnglishTemplate()">Save English Template</button>
+  </div>
+
+  <div class="section">
+    <label>Output Folder ID</label>
+    <input type="text" id="folderId" placeholder="Paste Drive folder ID here">
+    <div class="info">Where generated PDFs will be saved. Leave empty to auto-create.</div>
+    <button class="btn-primary" onclick="saveFolder()">Save Folder</button>
+  </div>
+
+  <hr>
+
+  <button class="btn-danger" onclick="resetAll()">Reset All Settings</button>
+  <div id="status" class="status"></div>
+
+  <script>
+    // Load current settings
+    google.script.run.withSuccessHandler(function(settings) {
+      if (settings.templateDocId) document.getElementById('templateId').value = settings.templateDocId;
+      if (settings.englishTemplateDocId) document.getElementById('englishTemplateId').value = settings.englishTemplateDocId;
+      if (settings.outputFolderId) document.getElementById('folderId').value = settings.outputFolderId;
+      if (settings.formUrl) {
+        document.getElementById('formUrl').innerHTML = '<a href="' + settings.formUrl + '" target="_blank">Open Form</a>';
+      }
+    }).getSettings();
+
+    function saveTemplate() {
+      var id = document.getElementById('templateId').value.trim();
+      if (!id) { showMsg('Enter a document ID.', 'error'); return; }
+      google.script.run.withSuccessHandler(function(r) { showMsg(r, 'success'); }).setTemplateDoc(id);
+    }
+
+    function saveEnglishTemplate() {
+      var id = document.getElementById('englishTemplateId').value.trim();
+      if (!id) { showMsg('Enter a document ID.', 'error'); return; }
+      google.script.run.withSuccessHandler(function(r) { showMsg(r, 'success'); }).saveEnglishTemplateDoc(id);
+    }
+
+    function saveFolder() {
+      var id = document.getElementById('folderId').value.trim();
+      if (!id) { showMsg('Enter a folder ID.', 'error'); return; }
+      google.script.run.withSuccessHandler(function(r) { showMsg(r, 'success'); }).saveOutputFolder(id);
+    }
+
+    function resetAll() {
+      if (confirm('I-reset lahat ng settings?')) {
+        google.script.run.withSuccessHandler(function(r) { showMsg(r, 'success'); }).resetSettings();
+        document.getElementById('templateId').value = '';
+        document.getElementById('englishTemplateId').value = '';
+        document.getElementById('folderId').value = '';
+        document.getElementById('formUrl').innerHTML = 'No form yet.';
+      }
+    }
+
+    function showMsg(msg, type) {
+      var el = document.getElementById('status');
+      el.textContent = msg;
+      el.className = 'status ' + (type || 'success');
+      setTimeout(function() { el.className = 'status'; }, 4000);
+    }
+  </script>
+</body>
+</html>

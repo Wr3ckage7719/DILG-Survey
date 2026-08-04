@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <style>
+      body {
+        font-family: Roboto, Arial, sans-serif;
+        padding: 16px;
+        color: #202124;
+        background: #fff;
+      }
+      h3 {
+        margin: 0 0 12px;
+        font-size: 14px;
+        font-weight: 500;
+      }
+      .opt {
+        display: block;
+        margin: 10px 0;
+        font-size: 13px;
+      }
+      .hint {
+        color: #5f6368;
+        font-size: 12px;
+        margin: 12px 0 14px;
+        line-height: 1.4;
+      }
+      .btn-row {
+        margin-top: 6px;
+      }
+      button {
+        padding: 8px 16px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 13px;
+      }
+      #go {
+        background: #1a3a6b;
+        color: #fff;
+      }
+      #go:disabled {
+        opacity: 0.6;
+        cursor: default;
+      }
+      #cancel {
+        background: #f1f3f4;
+        color: #202124;
+        margin-left: 8px;
+      }
+      #result {
+        margin-top: 14px;
+        font-size: 12px;
+        white-space: pre-wrap;
+        word-break: break-all;
+        max-height: 180px;
+        overflow-y: auto;
+      }
+      #result.ok { color: #1e7e34; }
+      #result.err { color: #c5221f; }
+      #result a { color: #1a3a6b; }
+    </style>
+  </head>
+  <body>
+    <h3>Pumili ng template ng form para sa printable sheet:</h3>
+    <label class="opt"><input type="radio" name="tpl" value="auto" checked> Auto (base sa "Wika ng sarbey" ng row)</label>
+    <label class="opt"><input type="radio" name="tpl" value="en"> English form</label>
+    <label class="opt"><input type="radio" name="tpl" value="tl"> Tagalog form</label>
+    <div class="hint">Kung walang "Wika ng sarbey" na column sa sheet, ang Auto ay gagamit ng Tagalog form.</div>
+    <div class="btn-row">
+      <button id="go">Generate</button>
+      <button id="cancel">Cancel</button>
+    </div>
+    <div id="result"></div>
+    <script>
+      var MODE = '<?= mode ?>';
+
+      function showResult(res) {
+        var el = document.getElementById('result');
+        var btn = document.getElementById('go');
+        btn.disabled = false;
+        if (res.ok) {
+          el.className = 'ok';
+          var txt = res.message + '\n';
+          if (res.urls) {
+            res.urls.forEach(function(u) { txt += '\n' + u; });
+          }
+          if (res.url) {
+            txt += '\n' + res.url;
+          }
+          if (res.errors && res.errors.length) {
+            txt += '\n\nHindi nagawa:\n' + res.errors.join('\n');
+          }
+          el.textContent = txt;
+        } else {
+          el.className = 'err';
+          el.textContent = res.message;
+        }
+      }
+
+      function showError(err) {
+        var el = document.getElementById('result');
+        document.getElementById('go').disabled = false;
+        el.className = 'err';
+        el.textContent = 'Error: ' + err.message;
+      }
+
+      document.getElementById('go').addEventListener('click', function() {
+        var choice = document.querySelector('input[name="tpl"]:checked').value;
+        var el = document.getElementById('result');
+        var btn = document.getElementById('go');
+        btn.disabled = true;
+        el.className = '';
+        el.textContent = 'Generating…';
+        var handler = google.script.run.withSuccessHandler(showResult).withFailureHandler(showError);
+        if (MODE === 'batch') {
+          handler.generateBatchWithChoice(choice);
+        } else {
+          handler.generateSingleWithChoice(choice);
+        }
+      });
+
+      document.getElementById('cancel').addEventListener('click', function() {
+        google.script.host.close();
+      });
+    </script>
+  </body>
+</html>
