@@ -1,0 +1,208 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "default_agent": "orchestrator",
+  "subagent_depth": 2,
+  "formatter": true,
+  "lsp": true,
+
+  "agent": {
+    "orchestrator": {
+      "description": "Main orchestrator — delegates to specialized sub-agents, coordinates multi-domain work, and uses all skills & MCP tools",
+      "mode": "primary",
+      "color": "#1a73e8",
+      "model": "anthropic/claude-sonnet-4-5",
+      "permission": {
+        "skill": { "*": "allow" },
+        "task": { "*": "allow" },
+        "bash": { "*": "allow" },
+        "edit": "allow",
+        "read": "allow",
+        "glob": "allow",
+        "grep": "allow"
+      },
+      "prompt": "{file:.opencode/prompts/orchestrator.txt}"
+    },
+    "plan": {
+      "mode": "primary",
+      "color": "#f59e0b",
+      "temperature": 0.1,
+      "permission": {
+        "edit": "deny",
+        "bash": { "git *": "allow", "*": "ask" },
+        "webfetch": "allow",
+        "websearch": "allow",
+        "skill": { "ui-ux-pro-max": "allow" }
+      }
+    },
+    "ui-designer": {
+      "description": "UI/UX design specialist — handles component design, visual polish, responsive layouts, and design tokens using all design skills",
+      "mode": "subagent",
+      "color": "#8b5cf6",
+      "temperature": 0.3,
+      "permission": {
+        "skill": {
+          "ui-styling": "allow",
+          "ui-ux-pro-max": "allow",
+          "frontend-design": "allow",
+          "shadcn-ui": "allow",
+          "react-tailwind": "allow",
+          "design": "allow",
+          "design-system": "allow"
+        },
+        "edit": "allow",
+        "read": "allow",
+        "glob": "allow",
+        "grep": "allow"
+      }
+    },
+    "animation-specialist": {
+      "description": "Animation and micro-interactions expert — Framer Motion, Tailwind CSS animations, page transitions, and motion design",
+      "mode": "subagent",
+      "color": "#ec4899",
+      "temperature": 0.3,
+      "permission": {
+        "skill": {
+          "framer-motion-animator": "allow",
+          "page-transitions": "allow",
+          "tailwindcss-animations": "allow"
+        },
+        "edit": "allow",
+        "read": "allow",
+        "glob": "allow",
+        "grep": "allow"
+      }
+    },
+    "code-reviewer": {
+      "description": "Code quality reviewer — reviews for best practices, security, performance, and maintainability (read-only)",
+      "mode": "subagent",
+      "color": "#10b981",
+      "temperature": 0.1,
+      "permission": {
+        "skill": {
+          "react-frontend": "allow",
+          "web-design-guidelines": "allow"
+        },
+        "edit": "deny",
+        "bash": { "git diff": "allow", "git log*": "allow", "grep *": "allow", "*": "deny" },
+        "read": "allow",
+        "glob": "allow",
+        "grep": "allow"
+      }
+    },
+    "accessibility-auditor": {
+      "description": "Web accessibility and design guidelines auditor — audits UI for WCAG compliance, best practices, and inclusive design",
+      "mode": "subagent",
+      "color": "#14b8a6",
+      "temperature": 0.1,
+      "permission": {
+        "skill": {
+          "web-design-guidelines": "allow",
+          "ui-ux-pro-max": "allow"
+        },
+        "edit": "deny",
+        "read": "allow",
+        "glob": "allow",
+        "grep": "allow",
+        "webfetch": "allow"
+      }
+    },
+    "brand-consultant": {
+      "description": "Brand identity and visual consistency specialist — ensures brand voice, color palette, typography, and design tokens are consistent",
+      "mode": "subagent",
+      "color": "#f43f5e",
+      "permission": {
+        "skill": {
+          "brand": "allow",
+          "design": "allow",
+          "design-system": "allow",
+          "banner-design": "allow",
+          "slides": "allow"
+        },
+        "edit": "allow",
+        "read": "allow",
+        "glob": "allow",
+        "grep": "allow"
+      }
+    },
+    "documentation-writer": {
+      "description": "Technical writer — creates and maintains project documentation, README files, and inline code docs",
+      "mode": "subagent",
+      "color": "#6366f1",
+      "permission": {
+        "skill": { "slides": "allow" },
+        "edit": "allow",
+        "read": "allow",
+        "glob": "allow",
+        "grep": "allow"
+      }
+    },
+    "skill-discoverer": {
+      "description": "Skill discovery specialist — helps find and install new opencode skills for project needs",
+      "mode": "subagent",
+      "color": "#a855f7",
+      "permission": {
+        "skill": { "find-skills": "allow" },
+        "read": "allow",
+        "webfetch": "allow",
+        "websearch": "allow",
+        "glob": "allow",
+        "grep": "allow",
+        "bash": { "npm *": "ask", "git clone *": "ask", "*": "allow" }
+      }
+    }
+  },
+
+  "command": {
+    "dev": {
+      "template": "Run the development server",
+      "description": "Start Vite dev server",
+      "command": "npm run dev"
+    },
+    "build": {
+      "template": "Build the project for production",
+      "description": "Build for production",
+      "command": "npm run build"
+    },
+    "preview": {
+      "template": "Preview the production build",
+      "description": "Preview production build",
+      "command": "npm run preview"
+    },
+    "review": {
+      "template": "Review all recent code changes for quality, security, and best practices",
+      "description": "Code review with code-reviewer subagent",
+      "agent": "code-reviewer",
+      "model": "anthropic/claude-sonnet-4-5"
+    },
+    "audit-a11y": {
+      "template": "Audit the UI for accessibility compliance and design guidelines",
+      "description": "Accessibility audit",
+      "agent": "accessibility-auditor",
+      "model": "anthropic/claude-sonnet-4-5"
+    },
+    "polish-ui": {
+      "template": "Review and polish the UI design — check visual consistency, responsive layout, and design tokens",
+      "description": "Polish UI visuals",
+      "agent": "ui-designer",
+      "model": "anthropic/claude-sonnet-4-5"
+    }
+  },
+
+  "mcp": {
+    "gh_grep": {
+      "type": "remote",
+      "url": "https://mcp.grep.app",
+      "enabled": true
+    },
+    "context7": {
+      "type": "remote",
+      "url": "https://mcp.context7.com/mcp",
+      "enabled": true
+    }
+  },
+
+  "instructions": [
+    "AGENTS.md",
+    ".opencode/project-rules.md"
+  ]
+}

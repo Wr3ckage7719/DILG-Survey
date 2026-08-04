@@ -6,7 +6,18 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "clasp": "clasp -P apps-script",
+    "clasp:login": "clasp login",
+    "clasp:status": "clasp -P apps-script status",
+    "clasp:pull": "clasp -P apps-script pull",
+    "clasp:push": "clasp -P apps-script push",
+    "clasp:deploy": "clasp -P apps-script deploy",
+    "clasp:open": "clasp -P apps-script open",
+    "clasp:logs": "clasp -P apps-script logs",
+    "clasp:versions": "clasp -P apps-script versions",
+    "clasp:create": "clasp -P apps-script create",
+    "clasp:clone": "clasp -P apps-script clone"
   },
   "dependencies": {
     "@dotlottie/react-player": "^1.6.3",
@@ -27,6 +38,7 @@
     "tailwind-merge": "^3.6.0"
   },
   "devDependencies": {
+    "@google/clasp": "^3.3.0",
     "@types/node": "^26.1.2",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",

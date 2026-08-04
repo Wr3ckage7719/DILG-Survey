@@ -2,5 +2,7 @@ node_modules/
 dist/
 .env
 *.local
+.clasprc.json
+*.clasprc.json
 
 .vercel
