@@ -102,9 +102,10 @@ function Survey() {
   const [errors, setErrors] = useState<Record<string, boolean>>({});
   const [shaking, setShaking] = useState(false);
   const [privacyExpanded, setPrivacyExpanded] = useState(false);
-  const [submitStage, setSubmitStage] = useState<'normal' | 'slow' | 'verySlow'>('normal');
+  const [submitStage, setSubmitStage] = useState<'normal' | 'first' | 'slow' | 'verySlow'>('normal');
   const honeypotRef = useRef<HTMLInputElement>(null);
   const submittingRef = useRef(false);
+  const submitCountRef = useRef(0);
   const prefersReduced = useReducedMotion();
 
   const update = useCallback((patch: Partial<FormData>) => {
@@ -243,7 +244,10 @@ function Survey() {
     if (submittingRef.current) return;
     submittingRef.current = true;
     setSubmitting(true);
-    setSubmitStage('normal');
+    submitCountRef.current += 1;
+    // The first submission of the session can hit a cold Apps Script instance,
+    // so warn that the wait may be longer than usual.
+    setSubmitStage(submitCountRef.current === 1 ? 'first' : 'normal');
 
     // Generate reference number (reused by the retry — the Apps Script dedupes
     // by it, so retrying after a lost response can never create a duplicate).
@@ -262,8 +266,9 @@ function Survey() {
       // screen appears the moment the data is recorded, without waiting for the
       // slow POST round-trip (which can exceed 40s when Google's edge loses the
       // response after a cold start). Read-only GET through the Vercel proxy;
-      // the Apps Script URL never touches the browser.
-      const REF_WATCH_BUDGET_MS = 50_000;
+      // the Apps Script URL never touches the browser. The 90s budget covers
+      // the worst-case cold start + write + lookup on the first submission.
+      const REF_WATCH_BUDGET_MS = 90_000;
       const submitStartedAt = Date.now();
       const refWatchDone = waitForRefSaved(ref, { timeoutMs: REF_WATCH_BUDGET_MS }, abortRefWatch.signal);
 
@@ -288,22 +293,23 @@ function Survey() {
         if (saved) finishSuccess();
       });
 
-      // Main path: the POST flow (single auto-retry with the SAME refNumber as
-      // before — the Apps Script dedupes by it, so a retry can never create a
+      // Main path: the POST flow (up to 2 auto-retries with the SAME refNumber
+      // — the Apps Script dedupes by it, so a retry can never create a
       // duplicate row). If the ref-watch already confirmed, skip the retry.
       const postOutcome = await (async (): Promise<SubmitResult> => {
         try {
           let result = await submitSurvey(form, ref, lang);
 
-          // Retry reasons (unchanged): submit_failed → 2s; fetch_error (client
-          // timeout) → longer wait for a cold instance to warm; rate_limit → a
-          // recent success for this IP means the row may already exist, so wait
-          // out the server cooldown then let the dedupe confirm it.
-          if (!result.ok) {
+          // Retry waits: submit_failed → 8s; fetch_error (client timeout) →
+          // longer, letting a cold instance warm; rate_limit → a recent success
+          // for this IP means the row may already exist, so wait out the server
+          // cooldown then let the dedupe confirm it.
+          for (let attempt = 1; attempt <= 2 && !result.ok; attempt++) {
+            if (settled) return { ok: true, refNumber: ref };
             const waitMs =
               result.code === 'rate_limit' ? 16_000
-              : result.code === 'fetch_error' ? 25_000
-              : 2_000;
+              : result.code === 'fetch_error' ? 20_000
+              : 8_000;
             await delay(waitMs, abortRefWatch.signal);
             // Success may already be showing via the ref-watch — no retry needed.
             if (settled) return { ok: true, refNumber: ref };
@@ -328,18 +334,15 @@ function Survey() {
         } else {
           // The POST failed, but the row may still be saved (lost response after
           // a cold start, or Google's edge returned an error AFTER writing). Give
-          // the ref-watch a grace window before declaring failure so a recorded
-          // survey is never shown as an error. fetch_error gets the full budget
-          // (the write can land late); definitive rejections get a short window.
+          // the ref-watch the FULL remaining budget before declaring failure so a
+          // recorded survey is never shown as an error. Every failure that lands
+          // here (submit_failed, fetch_error) is uncertain — the write may land
+          // any moment — so we never cut the wait short.
           const elapsed = Date.now() - submitStartedAt;
           const remainingBudget = Math.max(0, REF_WATCH_BUDGET_MS - elapsed);
-          const graceMs = Math.min(
-            postOutcome.code === 'fetch_error' ? remainingBudget : 8_000,
-            remainingBudget,
-          );
           const saved = await Promise.race([
             refWatchDone,
-            delay(graceMs).then(() => false),
+            delay(remainingBudget).then(() => false),
           ]);
           if (saved) finishSuccess();
           else finishFailure(postOutcome);
@@ -583,7 +586,9 @@ function Survey() {
               >
                 {submitStage === 'verySlow'
                   ? t('nav.submittingVerySlow')
-                  : t('nav.submittingSlow')}
+                  : submitStage === 'first'
+                    ? t('nav.submittingFirst')
+                    : t('nav.submittingSlow')}
               </motion.p>
             )}
           </AnimatePresence>

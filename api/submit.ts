@@ -45,10 +45,8 @@ const APPS_SCRIPT_URL = process.env.APPS_SCRIPT_URL;
 const SUBMIT_COOLDOWN_MS = 15_000;
 // Apps Script web apps take ~27s+ to wake from a cold start (measured 40.7s in
 // one production test). The browser fires warm-up GETs on page load and before
-// submit, but a cold instance can still exceed 40s, so the upstream timeout is
-// 55s — under the 60s maxDuration set in vercel.json. No retry server-side: a
-// retry would hit the same still-cold instance. The client does one retry.
-const UPSTREAM_TIMEOUT_MS = 55_000;
+// submit, but a cold instance can still exceed 40s. The POST below uses
+// per-attempt budgets that stay safely under the 60s maxDuration in vercel.json.
 // Warm-up GET timeout — a hung instance must not stall the health check.
 const WARMUP_TIMEOUT_MS = 25_000;
 const MAX_BODY_BYTES = 64 * 1024;
@@ -236,23 +234,28 @@ function setCorsHeaders(res: ServerResponse, origin?: string): void {
  * returns HTTP 200 even for its error branch, so an HTTP-only check could
  * silently lose a row.
  *
- * Transient-failure retry: Google's edge intermittently returns 404/5xx when
- * the web app instance is cold (measured in production) — sometimes AFTER the
- * script already executed and wrote the row. Retrying the SAME body once after
- * a short backoff is safe: the Apps Script dedupes by Reference Number, so a
- * repeated write collapses to a single row (dedupe:true). ─── */
-async function postToAppsScript(url: string, body: string): Promise<{ ok: boolean; detail: string; upstreamMs: number }> {
+ * Lost-response recovery: Google's edge intermittently drops/404s the response
+ * when the instance is cold (measured in production) — sometimes AFTER the
+ * script already executed and wrote the row. When a POST goes unconfirmed, we
+ * ask the Apps Script directly ("was this reference number recorded?") before
+ * giving up; a warm instance answers that read-only lookup in ~1-3s. Retries
+ * reuse the same body and Reference Number, so the Apps Script dedupe collapses
+ * any repeated write to a single row. Per-attempt budgets keep the whole
+ * function safely under the 60s maxDuration set in vercel.json. ─── */
+async function postToAppsScript(
+  url: string,
+  body: string,
+  ref: string,
+): Promise<{ ok: boolean; detail: string; upstreamMs: number }> {
   const startedAt = Date.now();
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), UPSTREAM_TIMEOUT_MS);
   let lastDetail = 'upstream_unreachable';
 
-  for (let attempt = 1; attempt <= 2; attempt++) {
-    if (attempt > 1) {
-      // Small backoff — the 404/5xx is Google-edge-transient; a couple of
-      // seconds lets the instance/edge settle before the second attempt.
-      await new Promise((r) => setTimeout(r, 3_000));
-    }
+  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+  /** POST the body; resolves whether the upstream body explicitly confirmed it. */
+  const postOnce = async (budgetMs: number): Promise<{ confirmed: boolean; detail: string }> => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), budgetMs);
     try {
       const res = await fetch(url, {
         method: 'POST',
@@ -267,32 +270,74 @@ async function postToAppsScript(url: string, body: string): Promise<{ ok: boolea
       } catch {
         parsed = null;
       }
-      const confirmed = res.ok && parsed && (parsed.success === true || parsed.ok === true);
-      if (confirmed) {
-        console.log(`[upstream] ok attempt=${attempt} in ${Date.now() - startedAt}ms`);
-        return { ok: true, detail: '', upstreamMs: Date.now() - startedAt };
-      }
+      const confirmed = res.ok && !!parsed && (parsed.success === true || parsed.ok === true);
       const detail = (parsed && parsed.error) || `upstream_http_${res.status}`;
-      console.error(
-        `[upstream] attempt=${attempt} not confirmed: status=${res.status} detail=${detail} in ${Date.now() - startedAt}ms`,
-      );
-      // 404 and 5xx are transient edge/instance failures — retry once.
-      if ((res.status === 404 || res.status >= 500) && attempt === 1) {
-        lastDetail = detail;
-        continue;
-      }
-      lastDetail = detail;
-      return { ok: false, detail: lastDetail, upstreamMs: Date.now() - startedAt };
+      return { confirmed, detail };
     } catch (err) {
       const aborted = err && typeof err === 'object' && (err as { name?: string }).name === 'AbortError';
-      console.error(`[upstream] attempt=${attempt} failed:`, aborted ? 'timeout' : err instanceof Error ? err.message : String(err));
-      if (attempt === 1) {
-        lastDetail = aborted ? 'timeout' : 'fetch_error';
-        continue; // retry once on network/timeout errors too
-      }
-      return { ok: false, detail: aborted ? 'timeout' : 'fetch_error', upstreamMs: Date.now() - startedAt };
+      return { confirmed: false, detail: aborted ? 'timeout' : 'fetch_error' };
+    } finally {
+      clearTimeout(timer);
     }
+  };
+
+  /** Read-only "was this ref recorded?" check — cheap when the instance is warm. */
+  const lookupSaved = async (budgetMs: number): Promise<boolean> => {
+    if (!ref.trim()) return false;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), budgetMs);
+    try {
+      const res = await fetch(`${url}?ref=${encodeURIComponent(ref)}`, { method: 'GET', signal: controller.signal });
+      const text = await res.text().catch(() => '');
+      let parsed: { saved?: boolean } | null = null;
+      try {
+        parsed = text ? JSON.parse(text) : null;
+      } catch {
+        parsed = null;
+      }
+      return !!(parsed && parsed.saved);
+    } catch {
+      return false;
+    } finally {
+      clearTimeout(timer);
+    }
+  };
+
+  // Attempt 1 — the long shot that covers a cold start (~27-40s). Worst-case
+  // budget math below: 30 + 1.5 + 8 + 10 + 1.5 + 5 = 56s < 60s Vercel cap.
+  const a1 = await postOnce(30_000);
+  if (a1.confirmed) {
+    console.log(`[upstream] ok attempt=1 in ${Date.now() - startedAt}ms`);
+    return { ok: true, detail: '', upstreamMs: Date.now() - startedAt };
   }
+  lastDetail = a1.detail;
+  console.error(`[upstream] attempt=1 not confirmed: ${a1.detail} in ${Date.now() - startedAt}ms`);
+
+  // Attempt 1 ran (or ran long enough that it probably executed) but the
+  // response was lost at Google's edge — the row may already be in the sheet.
+  await sleep(1_500);
+  if (await lookupSaved(8_000)) {
+    console.log(`[upstream] confirmed by ref-lookup after attempt=1 in ${Date.now() - startedAt}ms`);
+    return { ok: true, detail: '', upstreamMs: Date.now() - startedAt };
+  }
+
+  // Attempt 2 — attempt 1 woke the instance, so a fresh POST either writes the
+  // row or dedupes the retry in seconds.
+  const a2 = await postOnce(10_000);
+  if (a2.confirmed) {
+    console.log(`[upstream] ok attempt=2 in ${Date.now() - startedAt}ms`);
+    return { ok: true, detail: '', upstreamMs: Date.now() - startedAt };
+  }
+  lastDetail = a2.detail;
+  console.error(`[upstream] attempt=2 not confirmed: ${a2.detail} in ${Date.now() - startedAt}ms`);
+
+  // Attempt 2 may also have written the row before losing the response.
+  await sleep(1_500);
+  if (await lookupSaved(5_000)) {
+    console.log(`[upstream] confirmed by ref-lookup after attempt=2 in ${Date.now() - startedAt}ms`);
+    return { ok: true, detail: '', upstreamMs: Date.now() - startedAt };
+  }
+
   return { ok: false, detail: lastDetail, upstreamMs: Date.now() - startedAt };
 }
 
@@ -505,8 +550,9 @@ export default async function handler(
     emailAddress: sanitize(form.emailAddress),
   };
 
-  // ─── Forward to Google Apps Script ───
-  const upstream = await postToAppsScript(APPS_SCRIPT_URL, JSON.stringify(sanitized));
+  // ─── Forward to Google Apps Script (ref lets the server confirm by lookup
+  // when a cold instance loses the POST response) ───
+  const upstream = await postToAppsScript(APPS_SCRIPT_URL, JSON.stringify(sanitized), form.refNumber);
   if (!upstream.ok) {
     sendError(res, 502, 'submit_failed', { detail: upstream.detail });
     return;
