@@ -17,7 +17,6 @@ import {
   type SubmitResult,
 } from './api/submit';
 import { LanguageProvider, useLang } from './i18n/LanguageContext';
-import type { TranslationKey } from './i18n/translations';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -57,19 +56,6 @@ const REQUIRED_FIELDS: Record<string, (keyof FormData)[]> = {
   cc: ['cc1', 'cc2', 'cc3'],
   sqd: [],
   feedback: [],
-};
-
-/** Maps a form field key to the localized "you missed this" message. */
-const FIELD_ERROR_KEYS: Record<string, TranslationKey> = {
-  pangalanNgTanggapan: 'office.selectOffice',
-  serbisyongIbinigay: 'office.selectService',
-  uriNgKliyente: 'demo.clientTypeErr',
-  edad: 'demo.ageErr',
-  kasarian: 'demo.sexErr',
-  rehiyon: 'demo.regionErr',
-  cc1: 'cc.select',
-  cc2: 'cc.select',
-  cc3: 'cc.select',
 };
 
 function validate(sectionId: string, form: FormData): string[] {
@@ -168,13 +154,12 @@ function Survey() {
   };
 
   const showSqdErrors = (missing: number[]) => {
-    const errorMap: Record<string, boolean> = { sqd: true };
+    const errorMap: Record<string, boolean> = {};
     missing.forEach((i) => { errorMap[`sqd${i}`] = true; });
     setErrors(errorMap);
     setShaking(true);
     setTimeout(() => setShaking(false), 400);
     scrollToFirstError(missing.map((i) => `sqd${i}`));
-    toast.error(t('sqd.error'));
   };
 
   const showFieldErrors = (errorKeys: string[]) => {
@@ -184,11 +169,6 @@ function Survey() {
     setShaking(true);
     setTimeout(() => setShaking(false), 400);
     scrollToFirstError(errorKeys);
-    const msgs = errorKeys
-      .map((k) => FIELD_ERROR_KEYS[k])
-      .filter((k): k is TranslationKey => Boolean(k));
-    const msg = [...new Set(msgs)].map((k) => t(k)).join(' · ');
-    if (msg) toast.error(msg);
   };
 
   const next = () => {
