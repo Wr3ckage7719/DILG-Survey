@@ -78,6 +78,7 @@ const tl = {
   'sqd.instructions': 'Panuto',
   'sqd.instructionsText': 'Lagyan ng tsek (\u2713) ang hanay na pinakaangkop sa iyong sagot.',
   'sqd.error': 'Pakisagutan ang lahat ng mga tanong (maliban sa N/A kung naaangkop).',
+  'sqd.itemError': 'Pakisagutan ang tanong na ito.',
 
   // Feedback section
   'feedback.suggestions': 'Mga mungkahi',
@@ -170,6 +171,7 @@ const en: Record<TranslationKey, string> = {
   'sqd.instructionsText':
     'For the following items, put a check mark on the column that best describes your satisfaction level.',
   'sqd.error': 'Please answer all items (except where N/A applies).',
+  'sqd.itemError': 'Please answer this item.',
 
   // Feedback section
   'feedback.suggestions': 'Suggestions',

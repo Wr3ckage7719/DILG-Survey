@@ -35,7 +35,7 @@ export default function StepCC({ num, form, onChange, errors }: Props) {
 
   return (
     <fieldset
-      className={cn('space-y-3', hasError && 'rounded-2xl ring-2 ring-destructive/60 ring-offset-2')}
+      className="space-y-3"
       data-error-field={key}
       aria-invalid={hasError || undefined}
     >

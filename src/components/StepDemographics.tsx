@@ -104,7 +104,7 @@ function RadioGroupBlock(props: {
   const isSelected = (option: string) => props.value === option;
   return (
     <fieldset
-      className={cn('space-y-3', hasError && 'rounded-2xl ring-2 ring-destructive/60 ring-offset-2')}
+      className="space-y-3"
       data-error-field={props.errorKey}
       aria-invalid={hasError || undefined}
     >

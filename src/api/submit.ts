@@ -130,8 +130,22 @@ export async function waitForRefSaved(
 }
 
 /* ─── Map server error codes → localized messages ─── */
+
+/** Field name reported by the server (api/submit.ts) → localized "select" message. */
+const SERVER_FIELD_KEYS: Record<string, TranslationKey> = {
+  pangalanNgTanggapan: 'office.selectOffice',
+  serbisyongIbinigay: 'office.selectService',
+  uriNgKliyente: 'demo.clientTypeErr',
+  edad: 'demo.ageErr',
+  kasarian: 'demo.sexErr',
+  rehiyon: 'demo.regionErr',
+  cc1: 'cc.select',
+  cc2: 'cc.select',
+  cc3: 'cc.select',
+};
+
 function mapServerError(
-  json: { ok?: boolean; error?: string; retryIn?: number },
+  json: { ok?: boolean; error?: string; retryIn?: number; field?: string },
   dict: Record<TranslationKey, string>,
 ): string {
   switch (json?.error) {
@@ -141,8 +155,13 @@ function mapServerError(
       return dict['validation.email'];
     case 'invalid_phone':
       return dict['validation.phone'];
-    case 'missing_field':
     case 'invalid_sqd':
+      return dict['sqd.error'];
+    case 'missing_field':
+    case 'invalid_enum': {
+      const key = json.field ? SERVER_FIELD_KEYS[json.field] : undefined;
+      return key ? dict[key] : dict['toast.failed'];
+    }
     case 'invalid_json':
     case 'invalid_body':
     case 'method_not_allowed':
@@ -199,7 +218,7 @@ export async function submitSurvey(
     const timeoutMs = opts.isRetry ? 45_000 : SUBMIT_TIMEOUT_MS;
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
-    let json: { ok?: boolean; error?: string; refNumber?: string; retryIn?: number } | null = null;
+    let json: { ok?: boolean; error?: string; refNumber?: string; retryIn?: number; field?: string } | null = null;
     try {
       const res = await fetch('/api/submit', {
         method: 'POST',

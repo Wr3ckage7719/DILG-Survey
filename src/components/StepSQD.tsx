@@ -12,13 +12,13 @@ interface Props {
 }
 
 export default function StepSQD({ index, form, onChange, error = false }: Props) {
-  const { lang } = useLang();
+  const { lang, t } = useLang();
   const label = SQD_LABELS[lang][index];
   const displayValue = localizedOf(SQD_OPTIONS, lang, form.sqd[index]);
 
   return (
     <fieldset
-      className={cn('space-y-3', error && 'rounded-2xl ring-2 ring-destructive/60 ring-offset-2')}
+      className="space-y-3"
       data-error-field={`sqd${index}`}
       aria-invalid={error || undefined}
     >
@@ -49,6 +49,9 @@ export default function StepSQD({ index, form, onChange, error = false }: Props)
           );
         })}
       </RadioGroup>
+      {error && (
+        <p role="alert" className="text-xs text-destructive pl-1">{t('sqd.itemError')}</p>
+      )}
     </fieldset>
   );
 }

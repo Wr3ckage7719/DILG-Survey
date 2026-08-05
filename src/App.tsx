@@ -59,6 +59,19 @@ const REQUIRED_FIELDS: Record<string, (keyof FormData)[]> = {
   feedback: [],
 };
 
+/** Maps a form field key to the localized "you missed this" message. */
+const FIELD_ERROR_KEYS: Record<string, TranslationKey> = {
+  pangalanNgTanggapan: 'office.selectOffice',
+  serbisyongIbinigay: 'office.selectService',
+  uriNgKliyente: 'demo.clientTypeErr',
+  edad: 'demo.ageErr',
+  kasarian: 'demo.sexErr',
+  rehiyon: 'demo.regionErr',
+  cc1: 'cc.select',
+  cc2: 'cc.select',
+  cc3: 'cc.select',
+};
+
 function validate(sectionId: string, form: FormData): string[] {
   const fields = REQUIRED_FIELDS[sectionId];
   if (!fields) return [];
@@ -70,6 +83,10 @@ function validate(sectionId: string, form: FormData): string[] {
 
 /** SQD items that must be answered; index 5 (N/A preset) auto-passes. */
 const SQD_REQUIRED_INDEXES = [0, 1, 2, 3, 4, 6, 7, 8];
+
+function missingSqdIndexes(form: FormData): number[] {
+  return SQD_REQUIRED_INDEXES.filter((i) => !form.sqd[i] || form.sqd[i].trim() === '');
+}
 
 function validateFeedbackSection(form: FormData): Record<string, boolean> {
   const map: Record<string, boolean> = {};
@@ -150,16 +167,43 @@ function Survey() {
     el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   };
 
+  const showSqdErrors = (missing: number[]) => {
+    const errorMap: Record<string, boolean> = { sqd: true };
+    missing.forEach((i) => { errorMap[`sqd${i}`] = true; });
+    setErrors(errorMap);
+    setShaking(true);
+    setTimeout(() => setShaking(false), 400);
+    scrollToFirstError(missing.map((i) => `sqd${i}`));
+    toast.error(t('sqd.error'));
+  };
+
+  const showFieldErrors = (errorKeys: string[]) => {
+    const errorMap: Record<string, boolean> = {};
+    errorKeys.forEach((key) => { errorMap[key] = true; });
+    setErrors(errorMap);
+    setShaking(true);
+    setTimeout(() => setShaking(false), 400);
+    scrollToFirstError(errorKeys);
+    const msgs = errorKeys
+      .map((k) => FIELD_ERROR_KEYS[k])
+      .filter((k): k is TranslationKey => Boolean(k));
+    const msg = [...new Set(msgs)].map((k) => t(k)).join(' · ');
+    if (msg) toast.error(msg);
+  };
+
   const next = () => {
     const errorKeys = validate(sectionId, form);
     if (errorKeys.length > 0) {
-      const errorMap: Record<string, boolean> = {};
-      errorKeys.forEach((key) => { errorMap[key] = true; });
-      setErrors(errorMap);
-      setShaking(true);
-      setTimeout(() => setShaking(false), 400);
-      scrollToFirstError(errorKeys);
+      showFieldErrors(errorKeys);
       return;
+    }
+    // SQD: every item except the N/A preset must be answered before advancing
+    if (sectionId === 'sqd') {
+      const missing = missingSqdIndexes(form);
+      if (missing.length > 0) {
+        showSqdErrors(missing);
+        return;
+      }
     }
     setErrors({});
     setSectionIdx((s) => s + 1);
@@ -175,26 +219,18 @@ function Survey() {
     // Validate required fields
     const errorKeys = validate(sectionId, form);
     if (errorKeys.length > 0) {
-      const errorMap: Record<string, boolean> = {};
-      errorKeys.forEach((key) => { errorMap[key] = true; });
-      setErrors(errorMap);
-      setShaking(true);
-      setTimeout(() => setShaking(false), 400);
-      scrollToFirstError(errorKeys);
+      showFieldErrors(errorKeys);
       return;
     }
 
-    // SQD: every item except the N/A preset must be answered
-    if (sectionId === 'sqd') {
-      const missing = SQD_REQUIRED_INDEXES.filter((i) => !form.sqd[i] || form.sqd[i].trim() === '');
+    // SQD: every item except the N/A preset must be answered — checked here
+    // unconditionally (not gated by sectionId), because the submit button lives
+    // on the feedback section and a previous bug let empty SQD strings through
+    // to the server, which rejects them with invalid_sqd (400).
+    if (sectionId === 'sqd' || isLast) {
+      const missing = missingSqdIndexes(form);
       if (missing.length > 0) {
-        const errorMap: Record<string, boolean> = { sqd: true };
-        missing.forEach((i) => { errorMap[`sqd${i}`] = true; });
-        setErrors(errorMap);
-        setShaking(true);
-        setTimeout(() => setShaking(false), 400);
-        scrollToFirstError(missing.map((i) => `sqd${i}`));
-        toast.error(t('sqd.error'));
+        showSqdErrors(missing);
         return;
       }
     }
