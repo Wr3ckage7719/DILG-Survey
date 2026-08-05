@@ -10,11 +10,15 @@ const SUBMIT_COOLDOWN_MS = 15_000;
 let lastSubmitTime = 0;
 
 /* ─── Client-side timeout ─── */
-// Cap how long the browser waits before the UI can react. The Vercel function
-// keeps running even after the browser aborts (up to its own 55s timeout), so
-// the row may still land — the retry reuses the SAME refNumber and the Apps
-// Script dedupe turns any late success into a no-op (never a duplicate).
-const SUBMIT_TIMEOUT_MS = 20_000;
+// The first attempt must WAIT OUT the server's full cold-start recovery: the
+// server function's own budget is 30s (attempt 1) + 1.5s + 8s (ref-lookup) +
+// 10s (attempt 2) + 1.5s + 5s (ref-lookup) = 56s, and Vercel caps the function
+// at 60s. Aborting before ~60s would discard a success that is seconds away and
+// leave the UI stuck on "still submitting" while the row is already saved. 65s
+// is just above the Vercel cap, so the client only errors when the server has
+// genuinely hit its ceiling — the row may still have landed, which the ref-watch
+// and the full-budget grace window then confirm.
+const SUBMIT_TIMEOUT_MS = 65_000;
 
 /* ─── Warm-up (kills the Apps Script cold start) ─── */
 // The Google Apps Script web app takes ~27s to wake from cold. A cheap GET
@@ -211,10 +215,9 @@ export async function submitSurvey(
     const sanitized = sanitizeForm(data);
     const startedAt = Date.now();
 
-    // Retries get a longer window: the first attempt may be waiting out a cold
-    // Apps Script start (~27-40s). By the time we retry, the instance is usually
-    // warm, but give the retry room so it can't abort while the server finishes
-    // waking up (the row may still be saved server-side either way).
+    // The first attempt uses SUBMIT_TIMEOUT_MS (65s) to wait out a cold start.
+    // A retry only happens when the server already hit its 60s ceiling, so the
+    // instance is warm by then — 45s is ample for the second attempt.
     const timeoutMs = opts.isRetry ? 45_000 : SUBMIT_TIMEOUT_MS;
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
