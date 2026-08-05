@@ -67,18 +67,66 @@ export function isHoneypotFilled(value: string): boolean {
 }
 
 /* ─── Saved-confirmation check ─── */
-// Asks the server whether a reference number was actually recorded. Used as the
-// final safety net: when a POST fails or times out, the row may still have been
-// saved server-side (lost response after a cold start). If this returns true,
-// the user gets the success screen instead of a false error.
-export async function checkRefSaved(ref: string): Promise<boolean> {
+// Asks the server whether a reference number was actually recorded. Used by the
+// fast-success watcher and as the final safety net: when a POST fails or times
+// out, the row may still have been saved server-side (lost response after a
+// cold start). If this returns true, the user gets the success screen instead
+// of a false error.
+export async function checkRefSaved(ref: string, signal?: AbortSignal): Promise<boolean> {
   try {
-    const res = await fetch(`/api/submit?ref=${encodeURIComponent(ref)}`, { method: 'GET' });
+    const res = await fetch(`/api/submit?ref=${encodeURIComponent(ref)}`, { method: 'GET', signal });
     const json = await res.json().catch(() => null);
     return !!(json && json.saved);
   } catch {
     return false;
   }
+}
+
+/* ─── Abortable delay ─── */
+// Sleeps for ms, resolving early if the signal aborts (used to stop pointless
+// background work the moment success is confirmed).
+export function delay(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve) => {
+    if (signal?.aborted) return resolve();
+    let timer: ReturnType<typeof setTimeout>;
+    const onAbort = () => {
+      clearTimeout(timer);
+      resolve();
+    };
+    signal?.addEventListener('abort', onAbort, { once: true });
+    timer = setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort);
+      resolve();
+    }, ms);
+  });
+}
+
+/* ─── Fast-success watcher ─── */
+// Polls the ?ref= lookup until the row actually appears in the spreadsheet.
+// That read-only signal is the ground truth for "saved" — and typically lands
+// seconds before the slow POST round-trip returns (~10-40s through Google's
+// edge; a lost response can push it well past 40s). Racing it against the POST
+// lets the UI show success the moment the data is recorded. The lookup is a GET
+// through the Vercel proxy (the Apps Script URL never reaches the browser) and
+// is not subject to the POST rate limiter, so bounded polling is safe.
+export async function waitForRefSaved(
+  ref: string,
+  opts: { intervalMs?: number; timeoutMs?: number } = {},
+  signal?: AbortSignal,
+): Promise<boolean> {
+  const intervalMs = opts.intervalMs ?? 1_500;
+  const timeoutMs = opts.timeoutMs ?? 50_000;
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (signal?.aborted) return false;
+    // Each lookup also warms the endpoint, so the first (near-certainly-false)
+    // poll makes every later poll faster.
+    if (await checkRefSaved(ref, signal)) return true;
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) break;
+    await delay(Math.min(intervalMs, remaining), signal);
+  }
+  return false;
 }
 
 /* ─── Map server error codes → localized messages ─── */

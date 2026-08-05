@@ -12,7 +12,8 @@ import {
   validateEmail,
   validatePhone,
   warmUpSubmitEndpoint,
-  checkRefSaved,
+  delay,
+  waitForRefSaved,
   type SubmitResult,
 } from './api/submit';
 import { LanguageProvider, useLang } from './i18n/LanguageContext';
@@ -232,64 +233,106 @@ function Survey() {
     // by it, so retrying after a lost response can never create a duplicate).
     const ref = generateRefNumber();
 
-    // Progress messaging: reassure the client while they wait.
-    const slowTimer = setTimeout(() => setSubmitStage('slow'), 5_000);
-    const verySlowTimer = setTimeout(() => setSubmitStage('verySlow'), 15_000);
+    // Progress messaging: reassure the client while they wait. Thresholds are
+    // generous — the fast-success ref-watch below typically confirms within
+    // ~5-9s, under the slow threshold, so the happy path shows no warning.
+    const slowTimer = setTimeout(() => setSubmitStage('slow'), 10_000);
+    const verySlowTimer = setTimeout(() => setSubmitStage('verySlow'), 30_000);
+    const abortRefWatch = new AbortController();
 
     try {
-      let result = await submitSurvey(form, ref, lang);
+      // Fast-success watcher: polls the ?ref= lookup until the row actually
+      // lands in the spreadsheet — the true "saved" signal — so the success
+      // screen appears the moment the data is recorded, without waiting for the
+      // slow POST round-trip (which can exceed 40s when Google's edge loses the
+      // response after a cold start). Read-only GET through the Vercel proxy;
+      // the Apps Script URL never touches the browser.
+      const REF_WATCH_BUDGET_MS = 50_000;
+      const submitStartedAt = Date.now();
+      const refWatchDone = waitForRefSaved(ref, { timeoutMs: REF_WATCH_BUDGET_MS }, abortRefWatch.signal);
 
-      // Single auto-retry with the SAME refNumber (the Apps Script dedupes by it,
-      // so a retry can never create a duplicate row):
-      // - submit_failed (Vercel → Apps Script) → retry in 2s
-      // - fetch_error (client timeout) → the first request may still be waking the
-      //   cold Apps Script instance; wait longer so the retry lands when it is
-      //   warm and completes quickly. The row may already be saved — the dedupe
-      //   turns the retry into a harmless confirmation.
-      // - rate_limit → a recent success for this IP means the row may already
-      //   exist; wait out the server cooldown, then the dedupe confirms it.
-      if (!result.ok) {
-        const waitMs =
-          result.code === 'rate_limit' ? 16_000
-          : result.code === 'fetch_error' ? 25_000
-          : 2_000;
-        await new Promise((r) => setTimeout(r, waitMs));
-        result = await submitSurvey(form, ref, lang, { isRetry: true });
-      }
-
-      // A rate_limit on the RETRY means a save from this IP succeeded within the
-      // cooldown window. Since this retry reuses our own refNumber, that save is
-      // our row — the dedupe guarantees it — so treat it as a confirmed success.
-      if (!result.ok && result.code === 'rate_limit') {
-        result = { ok: true, refNumber: ref };
-      }
-
-      // Final safety net: if everything above failed but the row actually saved
-      // (lost response after a cold start), confirm it via the ?ref= lookup so a
-      // recorded survey can never be shown as an error — the whole point of the
-      // hardening pass. No duplicate is created: the lookup is read-only.
-      if (!result.ok) {
-        let saved = false;
-        try {
-          saved = await checkRefSaved(ref);
-        } catch {
-          saved = false;
-        }
-        if (saved) {
-          result = { ok: true, refNumber: ref };
-        }
-      }
-
-      if (result.ok) {
+      let settled = false;
+      const finishSuccess = () => {
+        if (settled) return;
+        settled = true;
+        abortRefWatch.abort();
         setSubmitted(true);
         toast.success(t('toast.submitted'));
-      } else {
+      };
+      const finishFailure = (result: SubmitResult) => {
+        if (settled) return;
+        settled = true;
+        abortRefWatch.abort();
         navigator.vibrate?.([120, 60, 120]);
         toast.error(result.error || t('toast.failed'));
+      };
+
+      // Fast path: the moment the row appears in the sheet, show success.
+      refWatchDone.then((saved) => {
+        if (saved) finishSuccess();
+      });
+
+      // Main path: the POST flow (single auto-retry with the SAME refNumber as
+      // before — the Apps Script dedupes by it, so a retry can never create a
+      // duplicate row). If the ref-watch already confirmed, skip the retry.
+      const postOutcome = await (async (): Promise<SubmitResult> => {
+        try {
+          let result = await submitSurvey(form, ref, lang);
+
+          // Retry reasons (unchanged): submit_failed → 2s; fetch_error (client
+          // timeout) → longer wait for a cold instance to warm; rate_limit → a
+          // recent success for this IP means the row may already exist, so wait
+          // out the server cooldown then let the dedupe confirm it.
+          if (!result.ok) {
+            const waitMs =
+              result.code === 'rate_limit' ? 16_000
+              : result.code === 'fetch_error' ? 25_000
+              : 2_000;
+            await delay(waitMs, abortRefWatch.signal);
+            // Success may already be showing via the ref-watch — no retry needed.
+            if (settled) return { ok: true, refNumber: ref };
+            result = await submitSurvey(form, ref, lang, { isRetry: true });
+          }
+
+          // A rate_limit on the RETRY means a save from this IP succeeded within
+          // the cooldown window. Since this retry reuses our own refNumber, that
+          // save is our row — the dedupe guarantees it — so treat it as success.
+          if (!result.ok && result.code === 'rate_limit') {
+            result = { ok: true, refNumber: ref };
+          }
+          return result;
+        } catch {
+          return { ok: false, refNumber: ref, error: t('toast.failed'), code: 'fetch_error' };
+        }
+      })();
+
+      if (!settled) {
+        if (postOutcome.ok) {
+          finishSuccess();
+        } else {
+          // The POST failed, but the row may still be saved (lost response after
+          // a cold start, or Google's edge returned an error AFTER writing). Give
+          // the ref-watch a grace window before declaring failure so a recorded
+          // survey is never shown as an error. fetch_error gets the full budget
+          // (the write can land late); definitive rejections get a short window.
+          const elapsed = Date.now() - submitStartedAt;
+          const remainingBudget = Math.max(0, REF_WATCH_BUDGET_MS - elapsed);
+          const graceMs = Math.min(
+            postOutcome.code === 'fetch_error' ? remainingBudget : 8_000,
+            remainingBudget,
+          );
+          const saved = await Promise.race([
+            refWatchDone,
+            delay(graceMs).then(() => false),
+          ]);
+          if (saved) finishSuccess();
+          else finishFailure(postOutcome);
+        }
       }
     } finally {
       clearTimeout(slowTimer);
       clearTimeout(verySlowTimer);
+      abortRefWatch.abort();
       setSubmitting(false);
       submittingRef.current = false;
     }
