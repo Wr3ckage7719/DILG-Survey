@@ -24,8 +24,41 @@ const SUBMIT_TIMEOUT_MS = 65_000;
 // The Google Apps Script web app takes ~27s to wake from cold. A cheap GET
 // through /api/submit warms both the Vercel function and the Apps Script
 // instance so the real POST (~2-3s when warm) succeeds on the first try.
-export function warmUpSubmitEndpoint(): void {
-  fetch('/api/submit', { method: 'GET' }).catch(() => {});
+// The server answers `{ ok, warm, upstreamMs }`: `warm` is true whenever the
+// Apps Script responded (even after a long cold boot), so a successful call
+// guarantees the instance is warm right now.
+// A successful warm-up is fresh for WARM_FRESH_MS; within that window the
+// pre-submit gate skips its wait entirely.
+const WARM_FRESH_MS = 240_000;
+let lastWarmAt = 0;
+
+export async function warmUpSubmitEndpoint(): Promise<boolean> {
+  try {
+    const res = await fetch('/api/submit', { method: 'GET' });
+    const json = await res.json().catch(() => null);
+    const warm = !!(json && json.warm === true);
+    if (warm) lastWarmAt = Date.now();
+    return warm;
+  } catch {
+    return false;
+  }
+}
+
+/* ─── Pre-submit readiness gate ─── */
+// Blocks until the Apps Script instance is warm so the real POST lands fast.
+// One GET that answers (even at ~40s after a cold boot) leaves the instance
+// warm for the POST that follows; it retries every 2s up to timeoutMs. The
+// timeout is kept near the server's own 45s warm-up window, so a hung instance
+// cannot stall the submit flow past the client's 65s POST budget in total.
+export async function ensureEndpointWarm(timeoutMs = 45_000): Promise<boolean> {
+  if (Date.now() - lastWarmAt < WARM_FRESH_MS) return true;
+  const deadline = Date.now() + timeoutMs;
+  let warm = await warmUpSubmitEndpoint();
+  while (!warm && Date.now() < deadline) {
+    await delay(2_000);
+    warm = await warmUpSubmitEndpoint();
+  }
+  return warm;
 }
 
 /* ─── Text sanitization ─── */

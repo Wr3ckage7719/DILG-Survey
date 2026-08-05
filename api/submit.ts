@@ -47,8 +47,11 @@ const SUBMIT_COOLDOWN_MS = 15_000;
 // one production test). The browser fires warm-up GETs on page load and before
 // submit, but a cold instance can still exceed 40s. The POST below uses
 // per-attempt budgets that stay safely under the 60s maxDuration in vercel.json.
-// Warm-up GET timeout — a hung instance must not stall the health check.
-const WARMUP_TIMEOUT_MS = 25_000;
+// Readiness probe timeout. A cold Apps Script instance can take up to ~40s to
+// boot; the client's pre-submit gate waits on this GET until the instance
+// answers (so the POST that follows is fast). 45s stays safely under the 60s
+// maxDuration in vercel.json.
+const WARMUP_TIMEOUT_MS = 45_000;
 const MAX_BODY_BYTES = 64 * 1024;
 
 /* ─── Option allow-lists (canonical Tagalog + English — the form stores the
@@ -391,19 +394,26 @@ export default async function handler(
       }
       return;
     }
+    // Plain GET doubles as the readiness probe the client waits on before its
+    // first POST: fetch the Apps Script and report whether it answered (`warm`)
+    // and how long it took. A cold instance can take up to WARMUP_TIMEOUT_MS to
+    // boot; once it answers, the instance is warm for the POST that follows.
+    const startedAt = Date.now();
+    let warm = false;
     if (APPS_SCRIPT_URL) {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), WARMUP_TIMEOUT_MS);
       try {
-        await fetch(APPS_SCRIPT_URL, { method: 'GET', signal: controller.signal });
+        const up = await fetch(APPS_SCRIPT_URL, { method: 'GET', signal: controller.signal });
+        warm = up.ok;
       } catch {
-        // warm-up failure is fine
+        // warm-up failure is fine — the POST flow has its own cold-start recovery
       } finally {
         clearTimeout(timer);
       }
     }
-    res.writeHead(204);
-    res.end();
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ ok: true, warm, upstreamMs: Date.now() - startedAt }));
     return;
   }
 

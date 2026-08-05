@@ -12,6 +12,7 @@ import {
   validateEmail,
   validatePhone,
   warmUpSubmitEndpoint,
+  ensureEndpointWarm,
   delay,
   waitForRefSaved,
   type SubmitResult,
@@ -102,10 +103,9 @@ function Survey() {
   const [errors, setErrors] = useState<Record<string, boolean>>({});
   const [shaking, setShaking] = useState(false);
   const [privacyExpanded, setPrivacyExpanded] = useState(false);
-  const [submitStage, setSubmitStage] = useState<'normal' | 'first' | 'slow' | 'verySlow'>('normal');
+  const [submitStage, setSubmitStage] = useState<'normal' | 'preparing' | 'slow' | 'verySlow'>('normal');
   const honeypotRef = useRef<HTMLInputElement>(null);
   const submittingRef = useRef(false);
-  const submitCountRef = useRef(0);
   const prefersReduced = useReducedMotion();
 
   const update = useCallback((patch: Partial<FormData>) => {
@@ -244,23 +244,31 @@ function Survey() {
     if (submittingRef.current) return;
     submittingRef.current = true;
     setSubmitting(true);
-    submitCountRef.current += 1;
-    // The first submission of the session can hit a cold Apps Script instance,
-    // so warn that the wait may be longer than usual.
-    setSubmitStage(submitCountRef.current === 1 ? 'first' : 'normal');
 
     // Generate reference number (reused by the retry — the Apps Script dedupes
     // by it, so retrying after a lost response can never create a duplicate).
     const ref = generateRefNumber();
 
-    // Progress messaging: reassure the client while they wait. Thresholds are
-    // generous — the fast-success ref-watch below typically confirms within
-    // ~5-9s, under the slow threshold, so the happy path shows no warning.
-    const slowTimer = setTimeout(() => setSubmitStage('slow'), 10_000);
-    const verySlowTimer = setTimeout(() => setSubmitStage('verySlow'), 30_000);
+    // Pre-submit readiness gate: ensure the Apps Script instance is warm so the
+    // POST (~2-3s when warm) succeeds on the first try. The first submission of
+    // a session can still hit a cold instance — "Preparing system…" reassures
+    // the client while the gate blocks (up to ~45s). If the gate times out we
+    // proceed anyway: the POST flow below has its own cold-start recovery.
+    setSubmitStage('preparing');
     const abortRefWatch = new AbortController();
+    let slowTimer: ReturnType<typeof setTimeout> | undefined;
+    let verySlowTimer: ReturnType<typeof setTimeout> | undefined;
 
     try {
+      await ensureEndpointWarm();
+
+      // Progress messaging: reassure the client while they wait. Thresholds are
+      // generous — the fast-success ref-watch below typically confirms within
+      // ~5-9s, under the slow threshold, so the happy path shows no warning.
+      // Timers start only after the gate, so the warnings track the POST wait.
+      setSubmitStage('normal');
+      slowTimer = setTimeout(() => setSubmitStage('slow'), 10_000);
+      verySlowTimer = setTimeout(() => setSubmitStage('verySlow'), 30_000);
       // Fast-success watcher: polls the ?ref= lookup until the row actually
       // lands in the spreadsheet — the true "saved" signal — so the success
       // screen appears the moment the data is recorded, without waiting for the
@@ -349,8 +357,8 @@ function Survey() {
         }
       }
     } finally {
-      clearTimeout(slowTimer);
-      clearTimeout(verySlowTimer);
+      if (slowTimer) clearTimeout(slowTimer);
+      if (verySlowTimer) clearTimeout(verySlowTimer);
       abortRefWatch.abort();
       setSubmitting(false);
       submittingRef.current = false;
@@ -586,8 +594,8 @@ function Survey() {
               >
                 {submitStage === 'verySlow'
                   ? t('nav.submittingVerySlow')
-                  : submitStage === 'first'
-                    ? t('nav.submittingFirst')
+                  : submitStage === 'preparing'
+                    ? t('nav.preparing')
                     : t('nav.submittingSlow')}
               </motion.p>
             )}

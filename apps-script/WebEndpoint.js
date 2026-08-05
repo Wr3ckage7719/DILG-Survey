@@ -13,10 +13,11 @@
 // Keep-warm (cold-start mitigation)
 // ──────────────────────────────────
 // The Apps Script web app sleeps after ~6 minutes of idle time; a cold POST
-// takes ~27-40s. A time-driven trigger pings this URL every 5 minutes so the
-// deployment stays warm (warm POSTs complete in ~1-3s). The URL constant below
-// is the LIVE deployment; if a new deployment is ever created, store its URL in
-// the script property 'WEBAPP_URL' (or update this constant) BEFORE changing it.
+// takes ~27-40s. A time-driven trigger pings this URL every minute so the
+// deployment never goes idle (warm POSTs complete in ~1-3s). The URL constant
+// below is the LIVE deployment; if a new deployment is ever created, store its
+// URL in the script property 'WEBAPP_URL' (or update this constant) BEFORE
+// changing it.
 var WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbyBMCCMGPOS16g7ZNWNdLO8NMcE-4BFrJdx3k98E88jGN5xT8m7otZFWakKlfx_HBp4/exec';
 
 function getWebAppUrl() {
@@ -42,19 +43,22 @@ function installKeepWarmTrigger() {
       ScriptApp.deleteTrigger(t);
     }
   });
+  // Every minute (the tightest interval Apps Script allows — everyMinutes only
+  // accepts 1, 5, 10, 15, 30). The instance idle timeout is ~6 min, so a 1-min
+  // ping keeps the deployment permanently warm.
   ScriptApp.newTrigger('keepWarm')
     .timeBased()
-    .everyMinutes(5)
+    .everyMinutes(1)
     .create();
-  Logger.log('keepWarm trigger installed (every 5 minutes).');
+  Logger.log('keepWarm trigger installed (every minute).');
 }
 
 // One menu action installs every time-based trigger the deployment needs:
-// keep-warm (every 5 min) + daily duplicate cleanup. Both are idempotent.
+// keep-warm (every minute) + daily duplicate cleanup. Both are idempotent.
 function installAllTriggers() {
   installKeepWarmTrigger();
   installCleanupTrigger();
-  return 'Installed: keep-warm (every 5 min) + duplicate cleanup (daily 3 AM).';
+  return 'Installed: keep-warm (every minute) + duplicate cleanup (daily 3 AM).';
 }
 
 // ──────────────────────────────────
@@ -267,7 +271,7 @@ function triggerStatus() {
   }
   return {
     status: 'ok',
-    version: 'v9',
+    version: 'v10',
     keepWarmTriggerInstalled: hasKeepWarm,
     cleanupTriggerInstalled: hasCleanup,
     time: new Date().toISOString(),

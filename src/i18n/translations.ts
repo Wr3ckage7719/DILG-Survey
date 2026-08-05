@@ -24,7 +24,7 @@ const tl = {
   'nav.next': 'Susunod',
   'nav.submit': 'Isumite ang Sarbey',
   'nav.submitting': 'Ipinapadala\u2026',
-  'nav.submittingFirst': 'Sinasagot ang inyong sarbey \u2014 maaaring tumagal ng hanggang isang minuto sa unang pag-submit. Mangyaring huwag i-refresh ang pahina.',
+  'nav.preparing': 'Inihahanda ang sistema\u2026 mangyaring maghintay.',
   'nav.submittingSlow': 'Patuloy na ipinapadala\u2026 mangyaring maghintay.',
   'nav.submittingVerySlow': 'Nakakaranas ng pagkaantala sa pagsusumite. Mangyaring huwag i-refresh ang pahina.',
 
@@ -116,7 +116,7 @@ const en: Record<TranslationKey, string> = {
   'nav.next': 'Next',
   'nav.submit': 'Submit Survey',
   'nav.submitting': 'Submitting\u2026',
-  'nav.submittingFirst': 'Saving your response \u2014 the first submission can take up to a minute. Please do not refresh the page.',
+  'nav.preparing': 'Preparing the system\u2026 please wait.',
   'nav.submittingSlow': 'Still submitting\u2026 please wait.',
   'nav.submittingVerySlow': 'Experiencing delays while submitting. Please do not refresh the page.',
 
