@@ -57,6 +57,28 @@ function installAllTriggers() {
   return 'Installed: keep-warm (every 5 min) + duplicate cleanup (daily 3 AM).';
 }
 
+// ──────────────────────────────────
+// Bounded ref lookups
+// ──────────────────────────────────
+// Every write-then-confirm flow (retry dedupe, lost-response ref lookup) targets
+// a reference written moments ago, so those scans only need the most recent
+// rows — reading the whole column on every poll is wasted work. The daily
+// cleanupDuplicateRefs() safety net keeps a full scan on purpose.
+var DEFAULT_REF_SCAN_WINDOW = 200;
+
+// Returns true if `ref` appears among the most recent rows' Reference Numbers.
+function refExists(sheet, refCol, ref) {
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) return false;
+  var numRows = Math.min(lastRow - 1, DEFAULT_REF_SCAN_WINDOW);
+  var startRow = lastRow - numRows + 1;
+  var vals = sheet.getRange(startRow, refCol + 1, numRows, 1).getValues();
+  for (var r = 0; r < vals.length; r++) {
+    if (String(vals[r][0]) === String(ref)) return true;
+  }
+  return false;
+}
+
 function doPost(e) {
   try {
     var data = JSON.parse(e.postData.contents);
@@ -124,15 +146,9 @@ function doPost(e) {
     try {
       // Idempotency: if this reference number is already recorded, treat the
       // resend as a success without writing another row.
-      if (refCol !== -1 && data.refNumber) {
-        var lastRow = sheet.getLastRow();
-        var refValues = sheet.getRange(2, refCol + 1, Math.max(lastRow - 1, 1), 1).getValues();
-        for (var r = 0; r < refValues.length; r++) {
-          if (String(refValues[r][0]) === String(data.refNumber)) {
-            Logger.log('dedupe: ref ' + data.refNumber + ' already recorded');
-            return okResponse(true, Date.now() - t0);
-          }
-        }
+      if (refCol !== -1 && data.refNumber && refExists(sheet, refCol, data.refNumber)) {
+        Logger.log('dedupe: ref ' + data.refNumber + ' already recorded');
+        return okResponse(true, Date.now() - t0);
       }
 
       sheet.appendRow(row);
@@ -251,7 +267,7 @@ function triggerStatus() {
   }
   return {
     status: 'ok',
-    version: 'v7',
+    version: 'v9',
     keepWarmTriggerInstalled: hasKeepWarm,
     cleanupTriggerInstalled: hasCleanup,
     time: new Date().toISOString(),
@@ -267,12 +283,7 @@ function lookupRefResponse(ref) {
       if (String(headers[i]).indexOf('Reference Number') !== -1) { refCol = i; break; }
     }
     if (refCol === -1) return jsonOut({ saved: false });
-    var lastRow = sheet.getLastRow();
-    var vals = sheet.getRange(2, refCol + 1, Math.max(lastRow - 1, 1), 1).getValues();
-    for (var r = 0; r < vals.length; r++) {
-      if (String(vals[r][0]) === String(ref)) return jsonOut({ saved: true });
-    }
-    return jsonOut({ saved: false });
+    return jsonOut({ saved: refExists(sheet, refCol, ref) });
   } catch (err) {
     Logger.log('lookupRef error: ' + err);
     return jsonOut({ saved: false, error: err.toString() });
@@ -357,7 +368,7 @@ function deleteTestRows() {
     if (lastRow < 2) return 0;
     var vals = sheet.getRange(2, refCol + 1, lastRow - 1, 1).getValues();
     var toDelete = [];
-    var prefixes = ['REFTEST-', 'DEDUPE-TEST-', 'VERIFY-', 'AUDIT-'];
+    var prefixes = ['REFTEST-', 'DEDUPE-TEST-', 'VERIFY-', 'AUDIT-', 'DILG-TEST-', 'DILG-RGNTEST-', 'DILG-SQDFULL-', 'DILG-VERIFY-'];
     for (var r = 0; r < vals.length; r++) {
       var v = String(vals[r][0]);
       for (var p = 0; p < prefixes.length; p++) {
