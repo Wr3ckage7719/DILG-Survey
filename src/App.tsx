@@ -32,6 +32,7 @@ import SectionSQD from './components/SectionSQD';
 import SectionFeedback from './components/SectionFeedback';
 import StepIndicator from './components/StepIndicator';
 import LanguagePicker from './components/LanguagePicker';
+import AdminApp from './admin/AdminApp';
 
 const spring = { type: 'spring' as const, stiffness: 300, damping: 30 };
 
@@ -85,6 +86,13 @@ function validateFeedbackSection(form: FormData): Record<string, boolean> {
 type Screen = 'landing' | 'language' | 'form';
 
 export default function App() {
+  // Admin dashboard lives at /admin (rewritten to index.html by Vercel, so we
+  // branch on the path here). Exact segment match — /administrator etc. must
+  // not be hijacked. Everything else is the client survey flow.
+  const path = window.location.pathname;
+  if (path === '/admin' || path.startsWith('/admin/')) {
+    return <AdminApp />;
+  }
   return (
     <LanguageProvider>
       <Survey />

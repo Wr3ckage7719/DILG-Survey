@@ -126,3 +126,52 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* ─── Admin: print view ───
+ * Only the `.print-root` block is printed (toolbars & chrome carry `no-print`).
+ * The dashboard's detail view renders the response as a faithful form copy. */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 12mm;
+  }
+
+  html,
+  body {
+    background: #ffffff !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Zero the wrapping main's padding/margins so the print root uses the page */
+  main {
+    padding: 0 !important;
+    margin: 0 !important;
+    max-width: none !important;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+
+  .print-root {
+    display: block !important;
+    border: none !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .print-root section {
+    page-break-inside: avoid;
+  }
+
+  .print-root table {
+    page-break-inside: auto;
+  }
+
+  .print-root tr {
+    page-break-inside: avoid;
+  }
+}

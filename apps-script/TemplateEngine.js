@@ -218,8 +218,8 @@ var EN_SERVICES = {
 // Read a single response row into key-value map
 // ──────────────────────────────────
 
-function readResponseRow(rowIndex) {
-  var sheet = SpreadsheetApp.getActiveSheet();
+function readResponseRow(rowIndex, sheet) {
+  sheet = sheet || SpreadsheetApp.getActiveSheet();
   var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
   var values = sheet.getRange(rowIndex, 1, 1, sheet.getLastColumn()).getValues()[0];
 
@@ -254,8 +254,8 @@ function readResponseRow(rowIndex) {
 // Filename-safe date from Petsa column (yyyy-MM-dd)
 // ──────────────────────────────────
 
-function getRawDateForFilename(rowIndex) {
-  var sheet = SpreadsheetApp.getActiveSheet();
+function getRawDateForFilename(rowIndex, sheet) {
+  sheet = sheet || SpreadsheetApp.getActiveSheet();
   var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
 
   // Try Petsa column first
@@ -623,8 +623,8 @@ function ciPattern(key) {
 // templateChoice: 'auto' (use row's "Wika ng sarbey") | 'en' | 'tl'
 // ──────────────────────────────────
 
-function generatePrintableForRow(rowIndex, templateChoice) {
-  var data = readResponseRow(rowIndex);
+function generatePrintableForRow(rowIndex, templateChoice, sheet) {
+  var data = readResponseRow(rowIndex, sheet);
   var isEnglish = resolveTemplateChoice(data, templateChoice);
   var templateDocId = isEnglish
     ? SCRIPT_PROP.getProperty('TEMPLATE_DOC_ID_EN')
@@ -661,7 +661,7 @@ function generatePrintableForRow(rowIndex, templateChoice) {
   // ── Copy template, merge, export ──
   var outputFolder = getOutputFolder();
   var responseId = data['Response ID'] || rowIndex;
-  var dateStr = getRawDateForFilename(rowIndex);
+  var dateStr = getRawDateForFilename(rowIndex, sheet);
   var fileName = 'DILG_Survey_' + responseId + '_' + dateStr + (isEnglish ? '_EN' : '_TL');
 
   var copyFile = templateFile.makeCopy(fileName, outputFolder);

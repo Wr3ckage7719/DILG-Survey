@@ -22,7 +22,7 @@ export const DISCLAIMER = {
  * languages by position. Forms ALWAYS store the canonical Tagalog string;
  * English mode only localizes the display. */
 
-type BilingualList = Record<Language, string[]>;
+export type BilingualList = Record<Language, string[]>;
 type BilingualGroupList = Record<Language, { label: string; items: string[] }[]>;
 
 /** Given a localized value, return the canonical (Tagalog) value. */

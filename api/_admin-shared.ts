@@ -1,0 +1,295 @@
+import type { IncomingMessage, ServerResponse } from 'node:http';
+import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
+
+/* ─── Shared admin API logic (Vercel serverless) ───
+ * Imported by api/admin/login.ts, api/admin/responses.ts, api/admin/print.ts.
+ * The leading underscore keeps Vercel from deploying this file as its own
+ * function. Keeps the Google Apps Script URL hidden (the browser only ever
+ * talks to the Vercel functions) and adds a login rate limit on top of the
+ * Apps Script's own password check.
+ *
+ * Env vars (Vercel → Settings → Environment Variables):
+ *   APPS_SCRIPT_URL  — the Google Apps Script web app URL (same as submit.ts)
+ *   ADMIN_GS_SECRET  — shared secret; MUST match the Apps Script script
+ *                      property ADMIN_API_SECRET
+ *   ADMIN_PASSWORD   — (optional) local first-line login check
+ *
+ * Tokens are HMAC-SHA256 over a { exp } payload, signed with ADMIN_GS_SECRET,
+ * minted AND verified by the Apps Script (single implementation). This layer
+ * re-verifies before forwarding as defense in depth. ─── */
+
+const APPS_SCRIPT_URL = process.env.APPS_SCRIPT_URL;
+const ADMIN_GS_SECRET = process.env.ADMIN_GS_SECRET || '';
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '';
+
+// Login throttle: 5 attempts per IP per 15 min (in-memory — resets on cold start).
+const LOGIN_MAX_ATTEMPTS = 5;
+const LOGIN_WINDOW_MS = 15 * 60 * 1000;
+const loginAttempts = new Map<string, number[]>();
+
+// Responses throttle: 30 list reads per IP per minute. Bounds how much PII a
+// lifted token can pull from one address before the 4h expiry kicks in.
+const RESPONSES_MAX_PER_MIN = 30;
+const responseCalls = new Map<string, number[]>();
+
+// Bounded-memory ceiling for both throttle maps (same pattern as api/submit.ts).
+const THROTTLE_MAP_CAP = 1000;
+
+const UPSTREAM_TIMEOUT_MS = 55_000;
+const MAX_BODY_BYTES = 16 * 1024;
+
+/* ─── Helpers ─── */
+export function sendJson(res: ServerResponse, status: number, obj: unknown): void {
+  res.writeHead(status, {
+    'Content-Type': 'application/json',
+    // Admin responses carry PII — never cache them anywhere.
+    'Cache-Control': 'no-store, private',
+  });
+  res.end(JSON.stringify(obj));
+}
+
+/** Constant-time password comparison (compare SHA-256 digests). */
+function constantTimeEquals(a: string, b: string): boolean {
+  return timingSafeEqual(
+    createHash('sha256').update(a).digest(),
+    createHash('sha256').update(b).digest(),
+  );
+}
+
+/** Record a failed login, pruning the map when it outgrows the cap. */
+function recordLoginFailure(ip: string, now: number, recent: number[]): void {
+  loginAttempts.set(ip, [...recent, now]);
+  if (loginAttempts.size > THROTTLE_MAP_CAP) {
+    for (const key of loginAttempts.keys()) {
+      const times = loginAttempts.get(key) || [];
+      if (!times.length || now - times[times.length - 1] >= LOGIN_WINDOW_MS) loginAttempts.delete(key);
+    }
+  }
+}
+
+/** Prune + record a responses read, bounding map size. */
+function recordResponseCall(ip: string, now: number, recent: number[]): void {
+  responseCalls.set(ip, [...recent, now]);
+  if (responseCalls.size > THROTTLE_MAP_CAP) {
+    for (const key of responseCalls.keys()) {
+      const times = responseCalls.get(key) || [];
+      if (!times.length || now - times[times.length - 1] >= 60_000) responseCalls.delete(key);
+    }
+  }
+}
+
+/** CORS: allow only the survey origin (+ Vercel preview domains + localhost). */
+export function setCorsHeaders(res: ServerResponse, origin?: string): void {
+  const allowed =
+    origin &&
+    (origin === 'https://dilg-survey-web.vercel.app' ||
+      /^https:\/\/dilg-survey-web(-[a-z0-9]+)?\.vercel\.app$/.test(origin) ||
+      /^https?:\/\/localhost:\d+$/.test(origin));
+  if (allowed) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Vary', 'Origin');
+  }
+  res.setHeader('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+}
+
+function getClientIp(req: IncomingMessage): string {
+  const vercel = req.headers['x-vercel-forwarded-for'];
+  if (typeof vercel === 'string' && vercel.trim()) return vercel.trim().split(',')[0].trim();
+  const fwd = req.headers['x-forwarded-for'];
+  if (typeof fwd === 'string' && fwd.trim()) {
+    const parts = fwd.split(',').map((p) => p.trim()).filter(Boolean);
+    if (parts.length) return parts[parts.length - 1];
+  }
+  return req.socket.remoteAddress || 'unknown';
+}
+
+async function readBody(req: IncomingMessage): Promise<string | null> {
+  let bodyStr = '';
+  try {
+    for await (const chunk of req) {
+      bodyStr += chunk;
+      if (bodyStr.length > MAX_BODY_BYTES) return null;
+    }
+  } catch {
+    return null;
+  }
+  return bodyStr;
+}
+
+function signPayload(payloadStr: string): string {
+  return createHmac('sha256', ADMIN_GS_SECRET).update(payloadStr).digest('hex');
+}
+
+/** Verify the HMAC token minted by the Apps Script (same secret). */
+function verifyToken(token: unknown): boolean {
+  if (typeof token !== 'string' || !ADMIN_GS_SECRET) return false;
+  const parts = token.split('.');
+  if (parts.length !== 2) return false;
+  let payloadStr: string;
+  try {
+    payloadStr = Buffer.from(parts[0], 'base64url').toString('utf8');
+  } catch {
+    return false;
+  }
+  const expected = signPayload(payloadStr);
+  const provided = parts[1];
+  if (expected.length !== provided.length) return false;
+  if (!timingSafeEqual(Buffer.from(expected), Buffer.from(provided))) return false;
+  try {
+    const payload = JSON.parse(payloadStr) as { exp?: number };
+    return typeof payload.exp === 'number' && payload.exp > Date.now();
+  } catch {
+    return false;
+  }
+}
+
+/** Forward an admin action to the Apps Script web app, injecting the secret. */
+async function forwardToAppsScript(
+  action: string,
+  payload: Record<string, unknown>,
+): Promise<{ status: number; json: Record<string, unknown> | null }> {
+  if (!APPS_SCRIPT_URL) return { status: 500, json: { ok: false, error: 'server_config_error' } };
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), UPSTREAM_TIMEOUT_MS);
+  try {
+    const url = `${APPS_SCRIPT_URL}?action=${encodeURIComponent(action)}&secret=${encodeURIComponent(ADMIN_GS_SECRET)}`;
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
+    const text = await res.text().catch(() => '');
+    let json: Record<string, unknown> | null = null;
+    try {
+      json = text ? JSON.parse(text) : null;
+    } catch {
+      json = null;
+    }
+    return { status: res.status, json };
+  } catch (err) {
+    const aborted = err && typeof err === 'object' && (err as { name?: string }).name === 'AbortError';
+    return { status: 504, json: { ok: false, error: 'upstream_timeout', detail: aborted ? 'timeout' : 'upstream_error' } };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/* ─── Route handlers (each exported for a matching api/admin/*.ts file) ─── */
+
+export async function handleLogin(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  if (req.method !== 'POST') {
+    sendJson(res, 405, { ok: false, error: 'method_not_allowed' });
+    return;
+  }
+
+  const ip = getClientIp(req);
+  const now = Date.now();
+  const recent = (loginAttempts.get(ip) || []).filter((t) => now - t < LOGIN_WINDOW_MS);
+  if (recent.length >= LOGIN_MAX_ATTEMPTS) {
+    sendJson(res, 429, { ok: false, error: 'too_many_attempts' });
+    return;
+  }
+
+  const bodyStr = await readBody(req);
+  if (!bodyStr) {
+    sendJson(res, 400, { ok: false, error: 'invalid_body' });
+    return;
+  }
+  let body: { password?: string };
+  try {
+    body = JSON.parse(bodyStr);
+  } catch {
+    sendJson(res, 400, { ok: false, error: 'invalid_json' });
+    return;
+  }
+
+  // First line of defense when ADMIN_PASSWORD is configured here (optional):
+  // block before spending an upstream call. The Apps Script's own password
+  // check remains authoritative.
+  if (ADMIN_PASSWORD && !constantTimeEquals(body.password || '', ADMIN_PASSWORD)) {
+    recordLoginFailure(ip, now, recent);
+    sendJson(res, 401, { ok: false, error: 'invalid_credentials' });
+    return;
+  }
+
+  const upstream = await forwardToAppsScript('login', { password: body.password || '' });
+  const json = upstream.json || { ok: false, error: 'upstream_error' };
+  if (json.ok !== true) {
+    recordLoginFailure(ip, now, recent);
+    const status = json.error === 'invalid_credentials' ? 401 : upstream.status;
+    sendJson(res, status, json);
+    return;
+  }
+  // Success: clear this IP's failure history.
+  if (recent.length) loginAttempts.delete(ip);
+  sendJson(res, 200, json);
+}
+
+export async function handleResponses(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  if (req.method !== 'POST') {
+    sendJson(res, 405, { ok: false, error: 'method_not_allowed' });
+    return;
+  }
+  const bodyStr = await readBody(req);
+  if (!bodyStr) {
+    sendJson(res, 400, { ok: false, error: 'invalid_body' });
+    return;
+  }
+  let body: { token?: string };
+  try {
+    body = JSON.parse(bodyStr);
+  } catch {
+    sendJson(res, 400, { ok: false, error: 'invalid_json' });
+    return;
+  }
+  if (!verifyToken(body.token)) {
+    sendJson(res, 401, { ok: false, error: 'unauthorized' });
+    return;
+  }
+  // PII throttle — only authenticated requests count (garbage tokens can't
+  // burn a legitimate admin's quota).
+  const ip = getClientIp(req);
+  const now = Date.now();
+  const recent = (responseCalls.get(ip) || []).filter((t) => now - t < 60_000);
+  if (recent.length >= RESPONSES_MAX_PER_MIN) {
+    sendJson(res, 429, { ok: false, error: 'rate_limited' });
+    return;
+  }
+  recordResponseCall(ip, now, recent);
+  const upstream = await forwardToAppsScript('responses', { token: body.token });
+  const json = upstream.json || { ok: false, error: 'upstream_error' };
+  sendJson(res, json.ok === true ? 200 : upstream.status, json);
+}
+
+export async function handlePrint(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  if (req.method !== 'POST') {
+    sendJson(res, 405, { ok: false, error: 'method_not_allowed' });
+    return;
+  }
+  const bodyStr = await readBody(req);
+  if (!bodyStr) {
+    sendJson(res, 400, { ok: false, error: 'invalid_body' });
+    return;
+  }
+  let body: { token?: string; row?: number; tpl?: string };
+  try {
+    body = JSON.parse(bodyStr);
+  } catch {
+    sendJson(res, 400, { ok: false, error: 'invalid_json' });
+    return;
+  }
+  if (!verifyToken(body.token)) {
+    sendJson(res, 401, { ok: false, error: 'unauthorized' });
+    return;
+  }
+  const row = Number(body.row);
+  if (!Number.isInteger(row) || row < 2) {
+    sendJson(res, 400, { ok: false, error: 'invalid_row' });
+    return;
+  }
+  const upstream = await forwardToAppsScript('print', { token: body.token, row, tpl: body.tpl || 'auto' });
+  const json = upstream.json || { ok: false, error: 'upstream_error' };
+  sendJson(res, json.ok === true ? 200 : upstream.status, json);
+}

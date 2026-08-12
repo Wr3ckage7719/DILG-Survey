@@ -1,6 +1,9 @@
 {
   "functions": {
-    "api/submit.ts": { "maxDuration": 60 }
+    "api/submit.ts": { "maxDuration": 60 },
+    "api/admin/login.ts": { "maxDuration": 60 },
+    "api/admin/responses.ts": { "maxDuration": 60 },
+    "api/admin/print.ts": { "maxDuration": 60 }
   },
   "rewrites": [
     { "source": "/(.*)", "destination": "/index.html" }

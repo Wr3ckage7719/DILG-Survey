@@ -83,9 +83,191 @@ function refExists(sheet, refCol, ref) {
   return false;
 }
 
-function doPost(e) {
+// ──────────────────────────────────
+// Admin API (web app): login / responses / print
+// ──────────────────────────────────
+// All admin actions require the shared ADMIN_API_SECRET script property, sent
+// as a ?secret= query parameter by the Vercel proxy (api/admin.ts) — or by the
+// Vite dev proxy — so the Google Apps Script URL can never be called directly
+// by a browser. Login additionally checks ADMIN_PASSWORD and mints an expiring
+// HMAC token; responses/print verify that token (defense in depth: the Vercel
+// function re-verifies it too before forwarding).
+//
+// Script Properties to configure (Extensions → Properties → Script properties):
+//   ADMIN_PASSWORD    — the admin dashboard password
+//   ADMIN_API_SECRET  — shared secret with the Vercel env ADMIN_GS_SECRET
+
+var ADMIN_TOKEN_TTL_MS = 4 * 60 * 60 * 1000; // 4 hours (shorter = smaller PII exposure window)
+var ADMIN_LOGIN_MAX_FAILS = 10;
+var ADMIN_LOGIN_WINDOW_MIN = 10;
+
+function adminSecret() {
+  return SCRIPT_PROP.getProperty('ADMIN_API_SECRET') || '';
+}
+
+function adminPassword() {
+  return SCRIPT_PROP.getProperty('ADMIN_PASSWORD') || '';
+}
+
+// The responses live on the sheet the survey writes to. Prefer the conventional
+// Google-Forms-linked sheet name; fall back to the active sheet (the submit
+// path's behavior). Pinning avoids reading a tab someone happened to select in
+// the spreadsheet UI — the admin list and doc generation must agree on a sheet.
+function getResponseSheet() {
+  var named = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Form Responses 1');
+  return named || SpreadsheetApp.getActiveSheet();
+}
+
+function signPayload(payloadStr) {
+  var sig = Utilities.computeHmacSha256Signature(payloadStr, adminSecret());
+  var hex = [];
+  for (var i = 0; i < sig.length; i++) {
+    hex.push(('0' + (sig[i] & 0xff).toString(16)).slice(-2));
+  }
+  return hex.join('');
+}
+
+function createAdminToken() {
+  var payload = JSON.stringify({ exp: Date.now() + ADMIN_TOKEN_TTL_MS });
+  return Utilities.base64EncodeWebSafe(payload) + '.' + signPayload(payload);
+}
+
+function verifyAdminToken(token) {
+  if (!token || !adminSecret()) return false;
+  var parts = String(token).split('.');
+  if (parts.length !== 2) return false;
+  var payloadStr = '';
   try {
-    var data = JSON.parse(e.postData.contents);
+    payloadStr = Utilities.newBlob(Utilities.base64DecodeWebSafe(parts[0])).getDataAsString();
+  } catch (err) {
+    return false;
+  }
+  if (signPayload(payloadStr) !== parts[1]) return false;
+  var payload = null;
+  try {
+    payload = JSON.parse(payloadStr);
+  } catch (err) {
+    return false;
+  }
+  return !!payload && payload.exp > Date.now();
+}
+
+function loginFailCount() {
+  var cache = CacheService.getScriptCache();
+  return parseInt(cache.get('ADMIN_LOGIN_FAILS') || '0', 10);
+}
+
+function doAdminLogin(body, e) {
+  if (!adminSecret()) {
+    return jsonOut({ ok: false, error: 'not_configured' });
+  }
+  if (String(e.parameter.secret || '') !== adminSecret()) {
+    return jsonOut({ ok: false, error: 'forbidden' });
+  }
+  if (loginFailCount() >= ADMIN_LOGIN_MAX_FAILS) {
+    return jsonOut({ ok: false, error: 'too_many_attempts' });
+  }
+  var pw = adminPassword();
+  if (!pw) {
+    return jsonOut({ ok: false, error: 'not_configured' });
+  }
+  if (!body.password || String(body.password) !== pw) {
+    var cache = CacheService.getScriptCache();
+    cache.put('ADMIN_LOGIN_FAILS', String(loginFailCount() + 1), ADMIN_LOGIN_WINDOW_MIN * 60);
+    return jsonOut({ ok: false, error: 'invalid_credentials' });
+  }
+  CacheService.getScriptCache().remove('ADMIN_LOGIN_FAILS');
+  return jsonOut({ ok: true, token: createAdminToken() });
+}
+
+function doAdminResponses(body, e) {
+  if (!adminSecret()) {
+    return jsonOut({ ok: false, error: 'not_configured' });
+  }
+  if (String(e.parameter.secret || '') !== adminSecret()) {
+    return jsonOut({ ok: false, error: 'forbidden' });
+  }
+  if (!verifyAdminToken(body.token)) {
+    return jsonOut({ ok: false, error: 'unauthorized' });
+  }
+  try {
+    var sheet = getResponseSheet();
+    var lastCol = sheet.getLastColumn();
+    var lastRow = sheet.getLastRow();
+    if (lastRow < 1) return jsonOut({ ok: true, rows: [], headers: [], count: 0 });
+    var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0].map(String);
+    var rows = [];
+    if (lastRow > 1) {
+      var values = sheet.getRange(2, 1, lastRow - 1, lastCol).getValues();
+      for (var r = 0; r < values.length; r++) {
+        var obj = { __row: r + 2 }; // spreadsheet row number (header = 1) — used by print
+        for (var c = 0; c < headers.length; c++) {
+          var v = values[r][c];
+          if (v instanceof Date) {
+            v = Utilities.formatDate(v, 'Asia/Manila', 'yyyy-MM-dd HH:mm:ss');
+          } else if (v === null || v === undefined) {
+            v = '';
+          } else {
+            v = String(v);
+          }
+          obj[headers[c]] = v;
+        }
+        rows.push(obj);
+      }
+    }
+    return jsonOut({ ok: true, headers: headers, rows: rows, count: rows.length });
+  } catch (err) {
+    Logger.log('doAdminResponses error: ' + err);
+    return jsonOut({ ok: false, error: 'list_failed', detail: err.toString() });
+  }
+}
+
+function doAdminPrint(body, e) {
+  if (!adminSecret()) {
+    return jsonOut({ ok: false, error: 'not_configured' });
+  }
+  if (String(e.parameter.secret || '') !== adminSecret()) {
+    return jsonOut({ ok: false, error: 'forbidden' });
+  }
+  if (!verifyAdminToken(body.token)) {
+    return jsonOut({ ok: false, error: 'unauthorized' });
+  }
+  var row = parseInt(body.row, 10);
+  if (!row || row < 2) return jsonOut({ ok: false, error: 'invalid_row' });
+  try {
+    // Same engine the spreadsheet menu uses ("Generate Printable Sheet").
+    // Returns a Google Doc URL (or an error message string). The sheet is
+    // pinned so the doc is generated from the SAME sheet the list came from.
+    var result = generatePrintableForRow(row, body.tpl || 'auto', getResponseSheet());
+    if (result && result.indexOf('https://') === 0) {
+      return jsonOut({ ok: true, url: result });
+    }
+    return jsonOut({ ok: false, error: 'generate_failed', detail: String(result || '') });
+  } catch (err) {
+    Logger.log('doAdminPrint error: ' + err);
+    return jsonOut({ ok: false, error: 'generate_failed', detail: err.toString() });
+  }
+}
+
+function doPost(e) {
+  // Admin API dispatch (login / responses / print). Survey submissions have no
+  // `action` field, so the submit path below is untouched. The action arrives
+  // ONLY as a ?action= query parameter from the Vercel/Vite proxy (which also
+  // injects the shared secret) — a body `action` key is never honored, so a
+  // future survey field named "action" can never silently divert submissions.
+  var body = {};
+  try {
+    body = JSON.parse(e.postData.contents || '{}');
+  } catch (err) {
+    body = {};
+  }
+  var action = (e && e.parameter && e.parameter.action) || '';
+  if (action === 'login') return doAdminLogin(body, e);
+  if (action === 'responses') return doAdminResponses(body, e);
+  if (action === 'print') return doAdminPrint(body, e);
+
+  try {
+    var data = body;
     var sheet = SpreadsheetApp.getActiveSheet();
     var t0 = Date.now();
 
@@ -271,7 +453,7 @@ function triggerStatus() {
   }
   return {
     status: 'ok',
-    version: 'v10',
+    version: 'v11',
     keepWarmTriggerInstalled: hasKeepWarm,
     cleanupTriggerInstalled: hasCleanup,
     time: new Date().toISOString(),
