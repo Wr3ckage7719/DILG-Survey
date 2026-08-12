@@ -1,7 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ArrowLeft,
-  Printer,
   FileText,
   Loader2,
   AlertCircle,
@@ -59,6 +58,15 @@ function eq(a: string, b: string): boolean {
     b.replace(/[\u2018\u2019]/g, "'").trim().toLowerCase();
 }
 
+/** The Apps Script returns a Google Doc URL (.../document/d/{id}/edit).
+ *  The /preview endpoint is Google's embeddable viewer — it renders the doc
+ *  like a PDF and includes a native print button. Pure client-side transform,
+ *  no Apps Script changes. */
+function toPreviewUrl(url: string): string | null {
+  const m = url.match(/\/document\/d\/([^/?]+)/);
+  return m ? `https://docs.google.com/document/d/${m[1]}/preview` : null;
+}
+
 function CheckList({ options, value }: { options: string[]; value: string }) {
   return (
     <div className="space-y-0.5">
@@ -76,9 +84,19 @@ export default function ResponseDetail({ row, token, onBack, onUnauthorized }: P
   const [generating, setGenerating] = useState(false);
   const [genError, setGenError] = useState('');
   const [genUrl, setGenUrl] = useState('');
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   // True when the failure is ambiguous — the Apps Script may have finished the
   // doc AFTER the request timed out, so a retry could create a duplicate.
   const [genAmbiguous, setGenAmbiguous] = useState(false);
+
+  useEffect(() => {
+    if (!previewUrl) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setPreviewUrl(null);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [previewUrl]);
 
   const sqd = useMemo(() => extractSqd(row), [row]);
   const sqdLabels = useMemo(() => {
@@ -119,7 +137,7 @@ export default function ResponseDetail({ row, token, onBack, onUnauthorized }: P
     setGenerating(false);
     if (result.ok && result.url) {
       setGenUrl(result.url);
-      window.open(result.url, '_blank', 'noopener');
+      setPreviewUrl(toPreviewUrl(result.url));
     } else {
       const err = result.detail || result.error || 'Failed to generate the printable document.';
       const ambiguous =
@@ -147,10 +165,6 @@ export default function ResponseDetail({ row, token, onBack, onUnauthorized }: P
             Back to responses
           </Button>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => window.print()}>
-              <Printer className="w-4 h-4" />
-              Print / Save PDF
-            </Button>
             <Button size="sm" onClick={generateDoc} disabled={generating}>
               {generating ? (
                 <>
@@ -196,15 +210,10 @@ export default function ResponseDetail({ row, token, onBack, onUnauthorized }: P
             </div>
           )}
           {genUrl && (
-            <a
-              href={genUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-2 text-sm text-primary font-semibold hover:underline"
-            >
+            <p className="flex items-center gap-2 text-sm text-primary font-semibold">
               <ExternalLink className="w-4 h-4" />
-              Printable document opened — open again if the tab was blocked
-            </a>
+              Printable document generated — preview opened below.
+            </p>
           )}
         </div>
 
@@ -411,6 +420,46 @@ export default function ResponseDetail({ row, token, onBack, onUnauthorized }: P
           </div>
         </div>
       </main>
+
+      {previewUrl && (
+        <div
+          className="no-print fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Printable document preview"
+        >
+          <div className="w-full max-w-4xl h-[85vh] bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-border/60 bg-white shrink-0">
+              <p className="text-sm font-semibold text-primary truncate">
+                Printable document — preview
+              </p>
+              <div className="flex items-center gap-2 shrink-0">
+                <a
+                  href={genUrl || previewUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  Open in new tab
+                </a>
+                <Button variant="outline" size="sm" onClick={() => setPreviewUrl(null)}>
+                  Close
+                </Button>
+              </div>
+            </div>
+            <iframe
+              src={previewUrl}
+              title="Printable document preview"
+              className="flex-1 w-full border-0 bg-white"
+              allow="fullscreen"
+            />
+            <p className="shrink-0 px-4 py-2 text-xs text-muted-foreground bg-secondary/40 border-t border-border/40">
+              Use the print icon in the preview toolbar to print or save as PDF.
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
