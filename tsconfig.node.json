@@ -6,5 +6,5 @@
     "types": ["node"],
     "outDir": "dist"
   },
-  "include": ["api", "lib", "vite.config.ts"]
+  "include": ["api", "vite.config.ts"]
 }

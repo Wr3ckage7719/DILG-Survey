@@ -1,14 +1,20 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 
-/* ─── Shared admin API logic (Vercel serverless) ───
- * Imported by api/admin/login.ts, api/admin/responses.ts, api/admin/print.ts.
- * The leading underscore keeps Vercel from deploying this file as its own
- * function. Keeps the Google Apps Script URL hidden (the browser only ever
- * talks to the Vercel functions) and adds a login rate limit on top of the
- * Apps Script's own password check.
+/* ─── Admin API (Vercel serverless, single self-contained file) ───
+ * Serves /api/admin/login, /api/admin/responses and /api/admin/print
+ * (URLs are mapped onto this one function via rewrites in vercel.json;
+ * the internal router dispatches by path). Everything lives in this file
+ * because Vercel compiles each api/* file standalone and does NOT trace
+ * local imports — shared modules placed anywhere else (api/ or lib/) are
+ * missing at runtime (ERR_MODULE_NOT_FOUND). Only node: builtins are
+ * imported, which always resolve.
  *
- * Env vars (Vercel → Settings → Environment Variables):
+ * Keeps the Google Apps Script URL hidden (the browser only ever talks to
+ * the Vercel functions) and adds a login rate limit on top of the Apps
+ * Script's own password check.
+ *
+ * Env vars (Vercel -> Settings -> Environment Variables):
  *   APPS_SCRIPT_URL  — the Google Apps Script web app URL (same as submit.ts)
  *   ADMIN_GS_SECRET  — shared secret; MUST match the Apps Script script
  *                      property ADMIN_API_SECRET
@@ -39,7 +45,7 @@ const UPSTREAM_TIMEOUT_MS = 55_000;
 const MAX_BODY_BYTES = 16 * 1024;
 
 /* ─── Helpers ─── */
-export function sendJson(res: ServerResponse, status: number, obj: unknown): void {
+function sendJson(res: ServerResponse, status: number, obj: unknown): void {
   res.writeHead(status, {
     'Content-Type': 'application/json',
     // Admin responses carry PII — never cache them anywhere.
@@ -79,7 +85,7 @@ function recordResponseCall(ip: string, now: number, recent: number[]): void {
 }
 
 /** CORS: allow only the survey origin (+ Vercel preview domains + localhost). */
-export function setCorsHeaders(res: ServerResponse, origin?: string): void {
+function setCorsHeaders(res: ServerResponse, origin?: string): void {
   const allowed =
     origin &&
     (origin === 'https://dilg-survey-web.vercel.app' ||
@@ -176,9 +182,9 @@ async function forwardToAppsScript(
   }
 }
 
-/* ─── Route handlers (each exported for a matching api/admin/*.ts file) ─── */
+/* ─── Route handlers ─── */
 
-export async function handleLogin(req: IncomingMessage, res: ServerResponse): Promise<void> {
+async function handleLogin(req: IncomingMessage, res: ServerResponse): Promise<void> {
   if (req.method !== 'POST') {
     sendJson(res, 405, { ok: false, error: 'method_not_allowed' });
     return;
@@ -227,7 +233,7 @@ export async function handleLogin(req: IncomingMessage, res: ServerResponse): Pr
   sendJson(res, 200, json);
 }
 
-export async function handleResponses(req: IncomingMessage, res: ServerResponse): Promise<void> {
+async function handleResponses(req: IncomingMessage, res: ServerResponse): Promise<void> {
   if (req.method !== 'POST') {
     sendJson(res, 405, { ok: false, error: 'method_not_allowed' });
     return;
@@ -263,7 +269,7 @@ export async function handleResponses(req: IncomingMessage, res: ServerResponse)
   sendJson(res, json.ok === true ? 200 : upstream.status, json);
 }
 
-export async function handlePrint(req: IncomingMessage, res: ServerResponse): Promise<void> {
+async function handlePrint(req: IncomingMessage, res: ServerResponse): Promise<void> {
   if (req.method !== 'POST') {
     sendJson(res, 405, { ok: false, error: 'method_not_allowed' });
     return;
@@ -292,4 +298,32 @@ export async function handlePrint(req: IncomingMessage, res: ServerResponse): Pr
   const upstream = await forwardToAppsScript('print', { token: body.token, row, tpl: body.tpl || 'auto' });
   const json = upstream.json || { ok: false, error: 'upstream_error' };
   sendJson(res, json.ok === true ? 200 : upstream.status, json);
+}
+
+/* ─── Router ───
+ * Dispatch on the path tail so routing works whether the runtime hands us
+ * the original URL (/api/admin/login) or the rewritten destination
+ * (/api/admin?route=login from vercel.json). */
+async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  const url = new URL(req.url || '/', 'http://internal');
+  const viaQuery = url.searchParams.get('route');
+  if (viaQuery === 'login') return handleLogin(req, res);
+  if (viaQuery === 'responses') return handleResponses(req, res);
+  if (viaQuery === 'print') return handlePrint(req, res);
+  const path = url.pathname;
+  if (path.endsWith('/login')) return handleLogin(req, res);
+  if (path.endsWith('/responses')) return handleResponses(req, res);
+  if (path.endsWith('/print')) return handlePrint(req, res);
+  if (path.endsWith('/admin')) return handleLogin(req, res);
+  sendJson(res, 404, { ok: false, error: 'not_found' });
+}
+
+export default async function handler(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  setCorsHeaders(res, req.headers.origin as string | undefined);
+  if (req.method === 'OPTIONS') {
+    res.writeHead(204);
+    res.end();
+    return;
+  }
+  await route(req, res);
 }

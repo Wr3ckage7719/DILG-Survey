@@ -1,11 +1,12 @@
 {
   "functions": {
     "api/submit.ts": { "maxDuration": 60 },
-    "api/admin/login.ts": { "maxDuration": 60 },
-    "api/admin/responses.ts": { "maxDuration": 60 },
-    "api/admin/print.ts": { "maxDuration": 60 }
+    "api/admin.ts": { "maxDuration": 60 }
   },
   "rewrites": [
+    { "source": "/api/admin/login", "destination": "/api/admin?route=login" },
+    { "source": "/api/admin/responses", "destination": "/api/admin?route=responses" },
+    { "source": "/api/admin/print", "destination": "/api/admin?route=print" },
     { "source": "/(.*)", "destination": "/index.html" }
   ],
   "headers": [

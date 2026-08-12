@@ -42,7 +42,7 @@ A multi-step client satisfaction survey form for the Department of Interior and 
 - `src/index.css` — Tailwind & CSS variables
 - `src/components/ui/` — shadcn/ui components
 - `src/admin/` + `src/api/admin.ts` — Admin dashboard (login, response list, print views)
-- `api/` — Vercel serverless functions (`submit.ts` + `admin/*`); shared helper code lives in `lib/_admin-shared.ts` (OUTSIDE `api/` — Vercel ignores files starting with `_` in `api/`, and files there are treated as routes, so shared modules must live in `lib/`)
+- `api/` — Vercel serverless functions (`submit.ts` + `admin.ts`). IMPORTANT: Vercel compiles each `api/*` file standalone and does NOT trace local imports (shared modules anywhere outside the file are missing at runtime: `ERR_MODULE_NOT_FOUND`). Keep each function self-contained — only `node:` builtins. `admin.ts` serves all three admin routes via rewrites in `vercel.json` (`/api/admin/login|responses|print` → `/api/admin?route=...`).
 - `apps-script/` — Google Apps Script project (clasp); `WebEndpoint.js` is the web app endpoint
 
 ## Admin Dashboard (`/admin`)
