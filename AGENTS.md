@@ -55,8 +55,12 @@ Apps Script re-verifies every request behind the Vercel layer (defense in depth)
    - `ADMIN_API_SECRET` — long random string
    - `ADMIN_PASSWORD` — the admin login password
 2. Redeploy the web app (new deployment URL) and set Vercel env vars:
-   - `APPS_SCRIPT_URL` (updated), `ADMIN_GS_SECRET` (same as `ADMIN_API_SECRET`),
-     `ADMIN_PASSWORD` (optional first-line check, same value)
+   - `APPS_SCRIPT_URL` (updated), `ADMIN_GS_SECRET` (same as `ADMIN_API_SECRET`)
+   - Do NOT set `ADMIN_PASSWORD` on Vercel — the password lives ONLY in the Apps
+     Script `ADMIN_PASSWORD` property (single source of truth). Changing the
+     password in the Settings sidebar takes effect immediately, no redeploys.
+     (The Vercel layer skips its first-line password check when the env var is
+     unset; the Apps Script check remains authoritative.)
 3. Local dev: put `ADMIN_GS_SECRET` in `.env` — the Vite proxy (`vite.config.ts`) injects
    it into the Apps Script URL, so dev talks to the same security model as prod.
 
