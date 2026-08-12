@@ -54,6 +54,16 @@
     <button class="btn-primary" onclick="saveFolder()">Save Folder</button>
   </div>
 
+  <div class="section">
+    <label>Admin Dashboard Login</label>
+    <input type="password" id="adminSecret" placeholder="Admin API secret (min 20 characters)" autocomplete="off">
+    <div class="info">Shared secret — must match the Vercel env var <b>ADMIN_GS_SECRET</b>. Paste once; it is never shown again.</div>
+    <input type="password" id="adminPassword" placeholder="Admin login password (min 8 characters)" autocomplete="off">
+    <div class="info">The password used to log in at /admin.</div>
+    <div id="adminStatus" class="info" style="margin-top:6px;">Checking…</div>
+    <button class="btn-primary" style="background:#674ea7;" onclick="saveAdmin()">Save Admin Login</button>
+  </div>
+
   <hr>
 
   <button class="btn-danger" onclick="resetAll()">Reset All Settings</button>
@@ -68,6 +78,9 @@
       if (settings.formUrl) {
         document.getElementById('formUrl').innerHTML = '<a href="' + settings.formUrl + '" target="_blank">Open Form</a>';
       }
+      document.getElementById('adminStatus').innerHTML = settings.adminConfigured
+        ? '<span style="color:#137333;">&#10003; Admin login is configured.</span>'
+        : 'Not configured yet — set the secret and password below.';
     }).getSettings();
 
     function saveTemplate() {
@@ -86,6 +99,20 @@
       var id = document.getElementById('folderId').value.trim();
       if (!id) { showMsg('Enter a folder ID.', 'error'); return; }
       google.script.run.withSuccessHandler(function(r) { showMsg(r, 'success'); }).saveOutputFolder(id);
+    }
+
+    function saveAdmin() {
+      var secret = document.getElementById('adminSecret').value.trim();
+      var password = document.getElementById('adminPassword').value.trim();
+      if (!secret || !password) { showMsg('Enter both the secret and the password.', 'error'); return; }
+      google.script.run
+        .withSuccessHandler(function(r) {
+          showMsg(r, 'success');
+          document.getElementById('adminSecret').value = '';
+          document.getElementById('adminPassword').value = '';
+          document.getElementById('adminStatus').innerHTML = '<span style="color:#137333;">&#10003; Admin login is configured.</span>';
+        })
+        .setAdminCredentials(secret, password);
     }
 
     function resetAll() {

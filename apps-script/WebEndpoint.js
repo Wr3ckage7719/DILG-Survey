@@ -18,7 +18,7 @@
 // below is the LIVE deployment; if a new deployment is ever created, store its
 // URL in the script property 'WEBAPP_URL' (or update this constant) BEFORE
 // changing it.
-var WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbyBMCCMGPOS16g7ZNWNdLO8NMcE-4BFrJdx3k98E88jGN5xT8m7otZFWakKlfx_HBp4/exec';
+var WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbxIYA2rSfdip7Zb40uY56OTIjDHGBsZDR5nIyCBRG6DbdLd2YkedAdv558JToN6mzzx/exec';
 
 function getWebAppUrl() {
   var prop = SCRIPT_PROP ? SCRIPT_PROP.getProperty('WEBAPP_URL') : null;
