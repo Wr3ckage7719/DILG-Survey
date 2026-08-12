@@ -41,7 +41,7 @@ const responseCalls = new Map<string, number[]>();
 // Bounded-memory ceiling for both throttle maps (same pattern as api/submit.ts).
 const THROTTLE_MAP_CAP = 1000;
 
-const UPSTREAM_TIMEOUT_MS = 55_000;
+const UPSTREAM_TIMEOUT_MS = 58_000; // < maxDuration (60s, Vercel Hobby ceiling) — doc generation may still finish on Google's side after this; the file appears in the Drive output folder either way.
 const MAX_BODY_BYTES = 16 * 1024;
 
 /* ─── Helpers ─── */

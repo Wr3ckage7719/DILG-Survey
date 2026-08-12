@@ -122,11 +122,18 @@ export default function ResponseDetail({ row, token, onBack, onUnauthorized }: P
       window.open(result.url, '_blank', 'noopener');
     } else {
       const err = result.detail || result.error || 'Failed to generate the printable document.';
-      setGenAmbiguous(
+      const ambiguous =
         result.error === 'upstream_timeout' ||
-        (result.error || '').startsWith('Network error'),
+        (result.error || '').startsWith('Network error');
+      setGenAmbiguous(ambiguous);
+      // A timeout is not a failure of the template — the Apps Script keeps
+      // working and the doc lands in the Drive output folder. Don't send the
+      // user down the "template not set" path in that case.
+      setGenError(
+        ambiguous
+          ? 'The document is taking longer than expected.'
+          : err,
       );
-      setGenError(err);
     }
   };
 
@@ -171,15 +178,18 @@ export default function ResponseDetail({ row, token, onBack, onUnauthorized }: P
             >
               <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
               <span className="space-y-1 block">
-                <span className="block">
-                  {genError} Make sure the template document is set in the spreadsheet
-                  (DILG Survey → Settings).
-                </span>
+                <span className="block">{genError}</span>
+                {!genAmbiguous && (
+                  <span className="block text-xs opacity-80">
+                    Make sure the template document is set in the spreadsheet
+                    (DILG Survey → Settings).
+                  </span>
+                )}
                 {genAmbiguous && (
                   <span className="block text-xs opacity-80">
-                    The request timed out, but the document may still have been created —
-                    check the output folder in Drive before retrying (a retry could create
-                    a duplicate).
+                    Google is still generating it in the background — check the
+                    Drive output folder for <strong>DILG_Survey_…</strong> in about a
+                    minute. Don’t click Generate again, or a duplicate may be created.
                   </span>
                 )}
               </span>
