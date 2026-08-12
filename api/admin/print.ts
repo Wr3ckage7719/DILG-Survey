@@ -1,7 +1,7 @@
-import type { IncomingMessage, ServerResponse } from 'node:http';
-import { handlePrint, setCorsHeaders } from '../_admin-shared';
+﻿import type { IncomingMessage, ServerResponse } from 'node:http';
+import { handlePrint, setCorsHeaders } from '../../lib/_admin-shared';
 
-/** POST /api/admin/print  { token, row, tpl } → { ok, url } */
+/** POST /api/admin/print  { token, row, tpl } â†’ { ok, url } */
 export default async function handler(req: IncomingMessage, res: ServerResponse): Promise<void> {
   setCorsHeaders(res, req.headers.origin as string | undefined);
   if (req.method === 'OPTIONS') {
