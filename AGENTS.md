@@ -75,6 +75,42 @@ Apps Script re-verifies every request behind the Vercel layer (defense in depth)
   enabled, request URLs including `?secret=` may be logged — rotate the secret if logs
   are shared.
 
+## Survey Submit Fast Path (`/api/submit` — Sheets API v4)
+**Status (prod): ENABLED** — `GOOGLE_SA_KEY` + `SPREADSHEET_ID` set on Vercel,
+tab pinned via `SHEET_TAB_NAME=Survey Data`. Verified live (2026-08-12): submit
+returns `via:"sheets"` in ~2s end-to-end (was 6–31s via Apps Script).
+
+`api/submit.ts` writes responses straight to Google Sheets via the Sheets API v4,
+bypassing the Apps Script `/exec` edge (the source of 12–40s round trips). This is
+the ONLY mechanism that gets the client's success screen under 5s — the Apps
+Script path cannot be made reliably faster from the server side. Falls back to the
+Apps Script write on any failure (and for the GET ?ref= lookup too). Enabled when
+BOTH env vars below are set; the response includes `via` (`sheets` | `sheets-dedupe`
+| `apps-script`).
+
+**Setup (optional, one-time):**
+1. Google Cloud Console → enable **Google Sheets API** on your Apps Script project.
+2. Create a service account (IAM & Admin → Service Accounts → Create → Keys → JSON).
+3. Open the survey spreadsheet → Share → add the service account `client_email`
+   from the JSON key as **Editor**.
+4. Vercel → Project Settings → Environment Variables:
+   - `GOOGLE_SA_KEY` — the full service-account JSON key (single line, escaped)
+     — or base64 of it. Aliases accepted: `SERVICE_ACCOUNT_KEY`.
+   - `SPREADSHEET_ID` — the id from the spreadsheet URL (`/spreadsheets/d/<id>/`).
+     Alias accepted: `SHEETS_FAST_PATH_SPREADSHEET_ID`.
+   - `SHEET_TAB_NAME` — optional: pin the tab (default: `Form Responses 1`, else
+     the first tab containing the survey headers).
+5. Vercel → Redeploy. Until both env vars are set, the server silently uses the
+   Apps Script path — safe to roll out gradually.
+
+Notes: dedupe = the write checks the Reference Number column first (mirrors the
+Apps Script `doPost`), so a retry with the same ref never double-writes; the daily
+Apps Script `cleanupDuplicateRefs` trigger is the last-resort sweep. Fast path
+touches ONLY how a survey row enters the sheet — document generation (admin
+`doAdminPrint` → TemplateEngine.js) reads the same sheet by header name and is
+unaffected. Rollback: unset `GOOGLE_SA_KEY`/`SPREADSHEET_ID` → behavior reverts
+to today.
+
 ## Skills Available
 Design & Visual: design, design-system, ui-styling, ui-ux-pro-max, frontend-design, banner-design
 UI Libraries: shadcn-ui, react-tailwind, react-frontend

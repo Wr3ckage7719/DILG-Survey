@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Search,
   RefreshCw,
@@ -9,9 +9,19 @@ import {
   ChevronLeft,
   ChevronRight,
   Printer,
+  Check,
+  X,
+  Clock,
+  ExternalLink,
+  FileDown,
+  AlertTriangle,
 } from 'lucide-react';
+import { motion } from 'framer-motion';
 import {
   adminFetchResponses,
+  adminBatchPrintChunk,
+  adminExportBatchPdf,
+  describeAdminError,
   type AdminRow,
 } from '../api/admin';
 import { Button } from '@/components/ui/button';
@@ -36,6 +46,15 @@ interface Props {
 
 const PAGE_SIZE = 25;
 
+type BatchStatus = 'pending' | 'working' | 'done' | 'error' | 'ambiguous';
+
+interface BatchItem {
+  row: number;
+  label: string;
+  status: BatchStatus;
+  error?: string;
+}
+
 export default function Dashboard({ token, onLogout }: Props) {
   const [rows, setRows] = useState<AdminRow[] | null>(null);
   const [loading, setLoading] = useState(true);
@@ -44,6 +63,24 @@ export default function Dashboard({ token, onLogout }: Props) {
   const [page, setPage] = useState(0);
   const [selected, setSelected] = useState<AdminRow | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+
+  // Batch selection + generation
+  const [selectedRows, setSelectedRows] = useState<Set<number>>(() => new Set());
+  const [batchItems, setBatchItems] = useState<BatchItem[] | null>(null);
+  const [batchRunning, setBatchRunning] = useState(false);
+  const [batchUrl, setBatchUrl] = useState<string | null>(null);
+  const [batchPartialDocId, setBatchPartialDocId] = useState<string | null>(null);
+  const [batchChunkIdx, setBatchChunkIdx] = useState(0);
+  const batchCancelRef = useRef(false);
+
+  // Batch documents are built in chunks of a few rows per request (each call
+  // must stay well under the Vercel 60s ceiling), threaded through the master
+  // document id. All chunks fill the SAME document — one sheet per response.
+  // Kept at 2: each merged entry costs ~10-20s upstream (copy + open + merge +
+  // save + reopen + append) and the LAST chunk additionally exports the PDF
+  // (~10-30s), so a chunk of 2 stays safely inside the 58s relay budget even
+  // when Google's edge is slow.
+  const BATCH_CHUNK_SIZE = 2;
 
   const load = useCallback(async (initial = false) => {
     // Only the first load blanks the table; refreshes keep the stale rows
@@ -56,7 +93,7 @@ export default function Dashboard({ token, onLogout }: Props) {
       return;
     }
     if (!result.ok) {
-      setError(result.error || result.detail || 'Failed to load responses.');
+      setError(describeAdminError(result));
       if (initial) {
         setRows(null);
         setLoading(false);
@@ -76,6 +113,156 @@ export default function Dashboard({ token, onLogout }: Props) {
     await load();
     setRefreshing(false);
   };
+
+  /* ─── Batch selection ─── */
+  const toggleRow = (row: number) => {
+    setSelectedRows((prev) => {
+      const next = new Set(prev);
+      if (next.has(row)) next.delete(row);
+      else next.add(row);
+      return next;
+    });
+  };
+
+  const togglePage = (checked: boolean) => {
+    setSelectedRows((prev) => {
+      const next = new Set(prev);
+      for (const r of pageRows) {
+        if (checked) next.add(r.__row);
+        else next.delete(r.__row);
+      }
+      return next;
+    });
+  };
+
+  const clearSelection = () => setSelectedRows(new Set());
+
+  /** Rows selected by the user, in display (newest-first) order. */
+  const selectedRowsInDisplay = (): AdminRow[] => sorted.filter((r) => selectedRows.has(r.__row));
+
+  /* ─── Batch generation ───
+   * Produces ONE document containing one filled form per selected response.
+   * Rows are sent in chunks (BATCH_CHUNK_SIZE) so no single request exceeds
+   * the Vercel 60s ceiling; the master document id is threaded through each
+   * chunk, and the last chunk exports the PDF and returns the document URL. */
+  const runBatch = async (items: BatchItem[]) => {
+    const tick = (row: number, patch: Partial<BatchItem>) =>
+      setBatchItems((prev) => (prev ? prev.map((it) => (it.row === row ? { ...it, ...patch } : it)) : prev));
+
+    const chunkList: number[][] = [];
+    for (let i = 0; i < items.length; i += BATCH_CHUNK_SIZE) {
+      chunkList.push(items.slice(i, i + BATCH_CHUNK_SIZE).map((it) => it.row));
+    }
+
+    let masterDocId: string | null = null;
+    for (let c = 0; c < chunkList.length; c++) {
+      if (batchCancelRef.current) break;
+      const chunk = chunkList[c];
+      chunk.forEach((row) => tick(row, { status: 'working' }));
+      setBatchChunkIdx(c);
+      const isFinal = c === chunkList.length - 1;
+      const result = await adminBatchPrintChunk(token, chunk, masterDocId, isFinal);
+      if (result.unauthorized) {
+        setBatchRunning(false);
+        onLogout();
+        return;
+      }
+      if (!result.ok) {
+        // Without the docId the batch cannot continue — mark this chunk failed.
+        // A timeout is ambiguous: Google may have appended the rows anyway, so
+        // the master doc can't be resumed without risking duplicate entries.
+        const code = result.error || '';
+        const ambiguous = code === 'upstream_timeout' || code.startsWith('Network error');
+        chunk.forEach((row) =>
+          tick(row, { status: ambiguous ? 'ambiguous' : 'error', error: describeAdminError(result) }),
+        );
+        // If an EARLIER chunk already created the master document, surface it:
+        // the rows merged so far live in that doc, even though the final chunk
+        // failed. Without this the admin sees no link at all — the dead-end the
+        // user hit. The doc URL is deterministic from the id (same URL the
+        // final chunk would have returned).
+        if (masterDocId) setBatchPartialDocId(masterDocId);
+        break;
+      }
+      if (result.docId) masterDocId = result.docId;
+      chunk.forEach((row) => {
+        if (result.failedRows && result.failedRows.includes(row)) {
+          tick(row, { status: 'error', error: 'This response could not be included in the batch document.' });
+        } else {
+          tick(row, { status: 'done' });
+        }
+      });
+      if (isFinal && result.url) {
+        setBatchUrl(result.url);
+        setBatchPartialDocId(null);
+        // Best-effort companion PDF export — fired AFTER the batch result is in
+        // so the heavy conversion never blocks it (the doc URL is the deliverable,
+        // the PDF is a Drive convenience). A failure here must not fail the batch.
+        if (result.docId) {
+          try {
+            await adminExportBatchPdf(token, result.docId);
+          } catch {
+            /* PDF is optional */
+          }
+        }
+      }
+    }
+    setBatchRunning(false);
+  };
+
+  const startBatch = async () => {
+    if (batchRunning || selectedRows.size === 0) return;
+    batchCancelRef.current = false;
+    setBatchUrl(null);
+    setBatchPartialDocId(null);
+    setBatchChunkIdx(0);
+    const items: BatchItem[] = selectedRowsInDisplay().map((r) => ({
+      row: r.__row,
+      label: rowRef(r) || `Row ${r.__row}`,
+      status: 'pending',
+    }));
+    if (!items.length) return;
+    setBatchItems(items);
+    setBatchRunning(true);
+    await runBatch(items);
+  };
+
+  /** Re-run only the rows that failed — they were NOT included in the batch
+   *  document, so a fresh batch document for just those rows is correct (no
+   *  duplicates). */
+  const retryFailed = async () => {
+    if (batchRunning || !batchItems) return;
+    const failed = batchItems.filter((it) => it.status === 'error');
+    if (!failed.length) return;
+    batchCancelRef.current = false;
+    setBatchUrl(null);
+    setBatchPartialDocId(null);
+    setBatchChunkIdx(0);
+    setBatchItems((prev) =>
+      prev ? prev.map((it) => (it.status === 'error' ? { ...it, status: 'pending', error: undefined } : it)) : prev,
+    );
+    setBatchRunning(true);
+    await runBatch(failed.map((it) => ({ ...it, status: 'pending' as BatchStatus })));
+  };
+
+  const cancelBatch = () => {
+    batchCancelRef.current = true;
+  };
+
+  const closeBatch = () => {
+    setBatchItems(null);
+    setBatchUrl(null);
+    setBatchPartialDocId(null);
+    clearSelection();
+  };
+
+  /* ─── Batch stats (derived) ─── */
+  const batchDone = batchItems?.filter((it) => it.status === 'done').length ?? 0;
+  const batchFailed = batchItems?.filter((it) => it.status === 'error').length ?? 0;
+  const batchAmbiguous = batchItems?.filter((it) => it.status === 'ambiguous').length ?? 0;
+  const batchTotal = batchItems?.length ?? 0;
+  const batchProgress = batchItems?.filter((it) => it.status !== 'pending' && it.status !== 'working').length ?? 0;
+  const batchPct = batchTotal ? Math.round((batchProgress / batchTotal) * 100) : 0;
 
   const filtered = useMemo(() => {
     if (!rows) return [];
@@ -158,7 +345,7 @@ export default function Dashboard({ token, onLogout }: Props) {
               {query && <span className="text-muted-foreground text-sm font-medium"> (filtered)</span>}
             </p>
             <p className="text-xs text-muted-foreground">
-              Click a row to view the full response and print a copy.
+              Click a row to view the full response · tick rows to generate one document with all of them.
             </p>
           </div>
           <div className="relative w-full sm:w-80">
@@ -175,6 +362,193 @@ export default function Dashboard({ token, onLogout }: Props) {
             />
           </div>
         </div>
+
+        {/* Selection action bar */}
+        {!batchItems && selectedRows.size > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: -6 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 rounded-2xl border border-primary/20 bg-primary/5 px-4 py-3"
+          >
+            <p className="text-sm font-semibold text-primary">
+              {selectedRows.size} selected
+              <span className="font-normal text-muted-foreground ml-2 hidden sm:inline">
+                — one document will be generated, with one sheet per response
+              </span>
+            </p>
+            <div className="flex items-center gap-2">
+              <Button variant="ghost" size="sm" onClick={clearSelection}>
+                Clear
+              </Button>
+              <Button variant="accent" size="sm" onClick={startBatch} disabled={batchRunning}>
+                <FileDown className="w-4 h-4" />
+                Generate batch document ({selectedRows.size})
+              </Button>
+            </div>
+          </motion.div>
+        )}
+
+        {/* Batch progress panel */}
+        {batchItems && batchItems.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: -6 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="rounded-2xl border border-primary/20 bg-white px-4 py-4 space-y-3"
+            role="status"
+            aria-live="polite"
+          >
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-sm font-bold text-primary flex items-center gap-2">
+                {batchRunning ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Generating batch document…
+                  </>
+                ) : batchUrl ? (
+                  <>
+                    <Check className="w-4 h-4 text-green-600" />
+                    Batch document ready
+                  </>
+                ) : (
+                  <>
+                    <Check className="w-4 h-4 text-green-600" />
+                    Batch finished
+                  </>
+                )}
+              </p>
+              <p className="text-xs text-muted-foreground tabular-nums">
+                {batchProgress}/{batchTotal}
+                {batchFailed > 0 && <span className="text-destructive"> · {batchFailed} failed</span>}
+                {batchAmbiguous > 0 && (
+                  <span className="text-amber-600"> · {batchAmbiguous} timed out</span>
+                )}
+              </p>
+            </div>
+
+            {/* Determinate progress bar */}
+            <div className="h-1.5 rounded-full bg-secondary overflow-hidden">
+              <motion.div
+                className="h-full rounded-full bg-accent"
+                animate={{ width: `${batchPct}%` }}
+                transition={{ duration: 0.4, ease: 'easeOut' }}
+              />
+            </div>
+
+            {batchRunning && (
+              <p className="text-xs text-muted-foreground">
+                One document, one sheet per response — processing responses{' '}
+                {batchChunkIdx * BATCH_CHUNK_SIZE + 1}–
+                {Math.min(batchTotal, (batchChunkIdx + 1) * BATCH_CHUNK_SIZE)} of {batchTotal}.
+              </p>
+            )}
+
+            {/* Per-row status list */}
+            {batchItems.length > 1 && (
+              <ul className="max-h-48 overflow-y-auto divide-y divide-border/40 rounded-xl border border-border/50 text-xs">
+                {batchItems.map((it) => (
+                  <li key={it.row} className="flex items-center gap-2.5 px-3 py-2">
+                    <span className="shrink-0">
+                      {it.status === 'working' ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" />
+                      ) : it.status === 'done' ? (
+                        <Check className="w-3.5 h-3.5 text-green-600" />
+                      ) : it.status === 'ambiguous' ? (
+                        <Clock className="w-3.5 h-3.5 text-amber-500" />
+                      ) : it.status === 'error' ? (
+                        <X className="w-3.5 h-3.5 text-destructive" />
+                      ) : (
+                        <span className="w-3.5 h-3.5 rounded-full border border-border inline-block" />
+                      )}
+                    </span>
+                    <span className="font-mono truncate max-w-[220px]">{it.label}</span>
+                    {it.status === 'error' && (
+                      <span className="ml-auto text-destructive truncate max-w-[300px] shrink-0">
+                        {it.error || 'Failed'}
+                      </span>
+                    )}
+                    {it.status === 'ambiguous' && (
+                      <span className="ml-auto text-amber-600 shrink-0">
+                        May still be in Drive — check the output folder.
+                      </span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {/* Final link — one document for the whole selection */}
+            {batchUrl && (
+              <div className="flex items-start gap-2 rounded-xl border border-green-600/30 bg-green-600/5 px-3.5 py-3">
+                <FileDown className="w-4 h-4 text-green-700 shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <p className="text-sm font-semibold text-foreground">
+                    One document with {batchTotal} response{batchTotal === 1 ? '' : 's'} is ready.
+                  </p>
+                  <a
+                    href={batchUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 text-sm text-primary font-semibold underline decoration-primary/40 underline-offset-4 hover:decoration-primary"
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                    Open the batch document
+                  </a>
+                  <p className="text-xs text-muted-foreground">
+                    Saved to the Drive output folder as a Google Doc + PDF.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Partial document — an earlier chunk succeeded but the final
+                chunk timed out: the merged rows live in the master doc even
+                though the final link never came back. */}
+            {batchPartialDocId && !batchUrl && (
+              <div className="rounded-lg border border-amber-300 bg-amber-50 p-4">
+                <p className="flex items-center gap-2 text-sm font-semibold text-amber-800">
+                  <AlertTriangle className="w-4 h-4" />
+                  Partial document created
+                </p>
+                <p className="mt-1 text-xs text-amber-700">
+                  A chunk timed out before the final link was returned, but{' '}
+                  {batchDone} of {batchTotal} response{batchTotal === 1 ? '' : 's'} are already in
+                  the document. Open it to check, then verify the Drive output folder.
+                </p>
+                <a
+                  href={`https://docs.google.com/document/d/${batchPartialDocId}/edit`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-2 inline-flex items-center gap-1.5 text-sm font-semibold text-amber-800 underline decoration-amber-700/40 underline-offset-4 hover:decoration-amber-800"
+                >
+                  <ExternalLink className="w-4 h-4" />
+                  Open the partial document
+                </a>
+              </div>
+            )}
+
+            {/* Actions */}
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              {batchRunning ? (
+                <Button variant="outline" size="sm" onClick={cancelBatch}>
+                  <X className="w-4 h-4" />
+                  Cancel
+                </Button>
+              ) : (
+                <>
+                  {batchFailed > 0 && (
+                    <Button variant="outline" size="sm" onClick={retryFailed}>
+                      <RefreshCw className="w-4 h-4" />
+                      Retry {batchFailed} failed
+                    </Button>
+                  )}
+                  <Button size="sm" onClick={closeBatch}>
+                    Close
+                  </Button>
+                </>
+              )}
+            </div>
+          </motion.div>
+        )}
 
         {/* Error state */}
         {error && (
@@ -216,6 +590,16 @@ export default function Dashboard({ token, onLogout }: Props) {
                 <table className="w-full text-left text-sm">
                   <thead>
                     <tr className="bg-secondary/60 text-xs uppercase tracking-wide text-muted-foreground">
+                      <th className="px-4 py-3 w-10">
+                        <input
+                          type="checkbox"
+                          className="size-4 accent-primary rounded"
+                          checked={pageRows.length > 0 && pageRows.every((r) => selectedRows.has(r.__row))}
+                          onChange={(e) => togglePage(e.target.checked)}
+                          aria-label="Select all rows on this page"
+                          disabled={batchRunning}
+                        />
+                      </th>
                       <th className="px-4 py-3 font-semibold whitespace-nowrap w-10">#</th>
                       <th className="px-4 py-3 font-semibold whitespace-nowrap">Date</th>
                       <th className="px-4 py-3 font-semibold whitespace-nowrap">Reference #</th>
@@ -243,6 +627,17 @@ export default function Dashboard({ token, onLogout }: Props) {
                         aria-label={`View response ${r.__row}`}
                         className="cursor-pointer transition-colors hover:bg-accent/5 focus-visible:outline-2 focus-visible:outline-primary focus-visible:-outline-offset-2"
                       >
+                        <td className="px-4 py-3">
+                          <input
+                            type="checkbox"
+                            className="size-4 accent-primary rounded"
+                            checked={selectedRows.has(r.__row)}
+                            onChange={() => toggleRow(r.__row)}
+                            onClick={(e) => e.stopPropagation()}
+                            aria-label={`Select row ${r.__row}`}
+                            disabled={batchRunning}
+                          />
+                        </td>
                         <td className="px-4 py-3 text-muted-foreground tabular-nums">{r.__row}</td>
                         <td className="px-4 py-3 text-muted-foreground whitespace-nowrap tabular-nums">
                           {formatTimestamp(rowTimestamp(r))}

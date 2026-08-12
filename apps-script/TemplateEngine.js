@@ -692,6 +692,228 @@ function generatePrintableForRow(rowIndex, templateChoice, sheet) {
   return copyFile.getUrl();
 }
 
+// ──────────────────────────────────
+// Batch: merge MULTIPLE responses into ONE document
+// (one filled form per response, each starting on a new page).
+//
+// Works in "chunks": the client sends a few rows at a time to stay under the
+// Vercel 60s ceiling. Every call returns the master document's id; the LAST
+// chunk (isFinal=true) additionally exports the PDF and returns the doc URL.
+// ──────────────────────────────────
+
+// Append a deep copy of every child element of srcBody to destBody, preserving
+// formatting and inline images. Used to stack filled template copies into the
+// single master batch document.
+//
+// Two layout pitfalls are handled here (both verified causes of "the first page
+// is perfect but appended pages drift"):
+//  1. Trailing page breaks / empty paragraphs are trimmed from the copied
+//     entry — the caller adds exactly ONE page break before each entry, so any
+//     copied break would push the entry one page further (cumulative drift) or
+//     create a blank page when the template itself ends with one.
+//  2. Table column widths are re-applied explicitly after appendTable():
+//     Google's Document service does not reliably carry them through
+//     copy(), so a copied table re-auto-fits from its content and its columns
+//     land at different positions than the template's.
+function appendBodyElements(destBody, srcBody) {
+  // Snapshot the children
+  var children = [];
+  var count = srcBody.getNumChildren();
+  for (var i = 0; i < count; i++) children.push(srcBody.getChild(i));
+
+  // Trim leading breaks/empty paragraphs
+  while (children.length) {
+    var head = children[0];
+    var headType = head.getType();
+    if (headType === DocumentApp.ElementType.PAGE_BREAK) { children.shift(); continue; }
+    if (headType === DocumentApp.ElementType.PARAGRAPH && head.asParagraph().getText().trim() === '') {
+      children.shift();
+      continue;
+    }
+    break;
+  }
+  // Trim trailing breaks/empty paragraphs
+  while (children.length) {
+    var tail = children[children.length - 1];
+    var tailType = tail.getType();
+    if (tailType === DocumentApp.ElementType.PAGE_BREAK) { children.pop(); continue; }
+    if (tailType === DocumentApp.ElementType.PARAGRAPH && tail.asParagraph().getText().trim() === '') {
+      children.pop();
+      continue;
+    }
+    break;
+  }
+
+  for (var j = 0; j < children.length; j++) {
+    var el = children[j];
+    var type = el.getType();
+    if (type === DocumentApp.ElementType.PARAGRAPH) {
+      destBody.appendParagraph(el.asParagraph().copy());
+    } else if (type === DocumentApp.ElementType.TABLE) {
+      appendCopiedTable(destBody, el.asTable());
+    } else if (type === DocumentApp.ElementType.LIST_ITEM) {
+      destBody.appendListItem(el.asListItem().copy());
+    } else if (type === DocumentApp.ElementType.HORIZONTAL_RULE) {
+      destBody.appendHorizontalRule();
+    } else if (type === DocumentApp.ElementType.INLINE_IMAGE) {
+      destBody.appendImage(el.asInlineImage().copy());
+    }
+  }
+}
+
+// Append a table copy, then explicitly re-apply the source column widths so the
+// copied grid lines up exactly like the template's. Columns without a set width
+// (null) are left to auto-fit — same as the source.
+function appendCopiedTable(destBody, srcTable) {
+  var appended = destBody.appendTable(srcTable.copy());
+  if (srcTable.getNumRows() === 0) return;
+  var colCount = srcTable.getRow(0).getNumCells();
+  for (var c = 0; c < colCount; c++) {
+    var w = srcTable.getColumnWidth(c);
+    if (w) appended.setColumnWidth(c, w);
+  }
+}
+
+// Fill a fresh copy of one row's template, append it to the master (each
+// entry starts on a new page), then trash the temp copy.
+function appendRowEntry(masterBody, rowIndex, templateChoice, sheet, outputFolder) {
+  var data = readResponseRow(rowIndex, sheet);
+  var isEnglish = resolveTemplateChoice(data, templateChoice);
+  var tplId = isEnglish
+    ? SCRIPT_PROP.getProperty('TEMPLATE_DOC_ID_EN')
+    : SCRIPT_PROP.getProperty('TEMPLATE_DOC_ID');
+  if (!tplId) throw new Error(isEnglish ? 'No English template set.' : 'No template set.');
+
+  var tplFile = DriveApp.getFileById(tplId);
+  var tempFile = tplFile.makeCopy('_batch_tmp_' + rowIndex, outputFolder);
+
+  // Retry: Drive may need a moment to propagate the copy.
+  var tempDoc = null;
+  for (var attempt = 0; attempt < 5; attempt++) {
+    try {
+      tempDoc = DocumentApp.openById(tempFile.getId());
+      break;
+    } catch (e) {
+      if (attempt < 4) Utilities.sleep(500);
+      else throw e;
+    }
+  }
+  try {
+    mergeResponseIntoDoc(tempDoc, data, isEnglish);
+    tempDoc.saveAndClose();
+    // Reopen for a clean read of the filled body (cached handles can lag).
+    var filled = DocumentApp.openById(tempFile.getId());
+    masterBody.appendPageBreak();
+    appendBodyElements(masterBody, filled.getBody());
+    filled.saveAndClose();
+  } finally {
+    try { tempFile.setTrashed(true); } catch (e) { /* cleanup is best-effort */ }
+  }
+}
+
+// rowIndexes: array of spreadsheet row numbers (>= 2)
+// templateChoice: 'auto' | 'en' | 'tl'
+// masterDocId: id of the batch document from a previous chunk ('' on the first)
+// isFinal: last chunk — export the PDF and return the doc URL
+function generateBatchPrintable(rowIndexes, templateChoice, masterDocId, isFinal, sheet) {
+  sheet = sheet || SpreadsheetApp.getActiveSheet();
+  var outputFolder = getOutputFolder();
+
+  if (!rowIndexes || rowIndexes.length === 0) {
+    return { ok: false, error: 'generate_failed', detail: 'No rows selected.' };
+  }
+  for (var vi = 0; vi < rowIndexes.length; vi++) {
+    if (rowIndexes[vi] < 2 || isNaN(parseInt(rowIndexes[vi], 10))) {
+      return { ok: false, error: 'generate_failed', detail: 'Invalid row: ' + rowIndexes[vi] };
+    }
+  }
+
+  var masterDoc;
+  var masterBody;
+  var startAt = 0;
+
+  if (masterDocId) {
+    // Continuing a batch started by an earlier chunk.
+    try {
+      masterDoc = DocumentApp.openById(masterDocId);
+      masterBody = masterDoc.getBody();
+    } catch (e) {
+      return { ok: false, error: 'generate_failed', detail: 'Cannot open batch document: ' + e.message };
+    }
+  } else {
+    // Create the master from the FIRST row's template, so the master's own
+    // body becomes the first filled entry (no copy-and-append needed for it).
+    var firstData = readResponseRow(rowIndexes[0], sheet);
+    var firstEn = resolveTemplateChoice(firstData, templateChoice);
+    var firstTplId = firstEn
+      ? SCRIPT_PROP.getProperty('TEMPLATE_DOC_ID_EN')
+      : SCRIPT_PROP.getProperty('TEMPLATE_DOC_ID');
+    if (!firstTplId) {
+      return { ok: false, error: 'generate_failed', detail: firstEn ? 'No English template set.' : 'No template set.' };
+    }
+    var firstTpl;
+    try {
+      firstTpl = DriveApp.getFileById(firstTplId);
+    } catch (e) {
+      return { ok: false, error: 'generate_failed', detail: 'Template not found: ' + e.message };
+    }
+    var ts = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyyMMdd_HHmmss');
+    var masterFile = firstTpl.makeCopy('DILG_Survey_Batch_' + ts, outputFolder);
+    masterDoc = DocumentApp.openById(masterFile.getId());
+    masterBody = masterDoc.getBody();
+    try {
+      mergeResponseIntoDoc(masterDoc, firstData, firstEn);
+    } catch (e) {
+      return { ok: false, error: 'generate_failed', detail: 'Row ' + rowIndexes[0] + ': ' + e.message };
+    }
+    startAt = 1;
+  }
+
+  // Append the remaining rows as fresh filled template copies. A failing row
+  // must not sink the whole batch — record it and continue with the next.
+  var failures = [];
+  for (var i = startAt; i < rowIndexes.length; i++) {
+    try {
+      appendRowEntry(masterBody, rowIndexes[i], templateChoice, sheet, outputFolder);
+    } catch (e) {
+      failures.push(rowIndexes[i]);
+      Logger.log('Batch row ' + rowIndexes[i] + ' failed: ' + e);
+    }
+  }
+
+  if (!isFinal) {
+    masterDoc.saveAndClose();
+    var partial = { ok: true, docId: masterDoc.getId() };
+    if (failures.length) partial.failedRows = failures;
+    return partial;
+  }
+
+  // Final chunk: hand back the finished document URL. The PDF is exported in a
+  // separate follow-up call (exportBatchPdf) so the heavy getAs('application/pdf')
+  // never competes with the merge work inside the Vercel 60s relay window — a
+  // final chunk that ALSO converted the whole document to PDF routinely blew
+  // past the ~58s budget and timed out (rows left in an ambiguous "may still be
+  // in Drive" state even though the document itself completed).
+  masterDoc.saveAndClose();
+  var masterFileFinal = DriveApp.getFileById(masterDoc.getId());
+  var result = { ok: true, url: masterFileFinal.getUrl(), docId: masterDoc.getId() };
+  if (failures.length) result.failedRows = failures;
+  return result;
+}
+
+// Export the finished batch document as a PDF into the output folder. Called by
+// the client right after the final chunk returns, so the batch result never
+// waits on the conversion. PDF-only work (~10-30s for a multi-page document)
+// fits comfortably inside the Vercel relay budget on its own.
+function exportBatchPdf(docId) {
+  var outputFolder = getOutputFolder();
+  var file = DriveApp.getFileById(docId);
+  var pdfBlob = file.getAs('application/pdf');
+  var pdfName = file.getName() + '.pdf';
+  outputFolder.createFile(pdfBlob).setName(pdfName);
+  return { ok: true, docId: docId, pdfName: pdfName };
+}
+
 // Resolve which template language to use for a row.
 // 'en'/'tl' override; 'auto' falls back to the row's "Wika ng sarbey"
 // (missing column → Tagalog template).

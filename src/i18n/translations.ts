@@ -38,6 +38,10 @@ const tl = {
   // Thank-you screen
   'done.title': 'Maraming Salamat!',
   'done.message': 'Ang inyong tugon ay makatutulong sa pagpapabuti ng serbisyo publiko.',
+  'done.refLabel': 'Ang inyong Reference Number:',
+  'done.refCopied': 'Nakopya ang reference number.',
+  'done.refHint': 'Itago ang numerong ito kung sakaling kailanganin ninyo ng follow-up.',
+  'done.copy': 'Kopyahin',
 
   // Step indicator
   'indicator.office': 'Tanggapan',
@@ -130,6 +134,10 @@ const en: Record<TranslationKey, string> = {
   // Thank-you screen
   'done.title': 'Thank you!',
   'done.message': 'Your response will help improve public service.',
+  'done.refLabel': 'Your reference number:',
+  'done.refCopied': 'Reference number copied.',
+  'done.refHint': 'Keep this number in case you need to follow up on your request.',
+  'done.copy': 'Copy',
 
   // Step indicator
   'indicator.office': 'Office',

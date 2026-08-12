@@ -6,3 +6,5 @@ dist/
 *.clasprc.json
 
 .vercel
+
+.env*

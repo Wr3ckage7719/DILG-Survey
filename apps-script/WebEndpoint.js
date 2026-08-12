@@ -232,6 +232,40 @@ function doAdminPrint(body, e) {
   if (!verifyAdminToken(body.token)) {
     return jsonOut({ ok: false, error: 'unauthorized' });
   }
+
+  // PDF-only export for an ALREADY-finished batch document (exportBatchPdf in
+  // TemplateEngine.js). The client fires this after the final merge chunk so
+  // the heavy PDF conversion never competes with merge work inside the Vercel
+  // relay window — merging AND converting in one call was what timed batches out.
+  if (body.pdfDocId) {
+    try {
+      return jsonOut(exportBatchPdf(String(body.pdfDocId)));
+    } catch (err) {
+      Logger.log('doAdminPrint (pdf) error: ' + err);
+      return jsonOut({ ok: false, error: 'generate_failed', detail: err.toString() });
+    }
+  }
+
+  // Batch mode: ONE document containing one filled form per selected response.
+  // The client sends rows in chunks (masterDocId + final mark the boundaries);
+  // each chunk returns the master doc id, the last one also the PDF URL.
+  if (Array.isArray(body.rows) && body.rows.length > 0) {
+    try {
+      var rows = body.rows.map(function (r) { return parseInt(r, 10); });
+      var batch = generateBatchPrintable(
+        rows,
+        body.tpl || 'auto',
+        String(body.masterDocId || ''),
+        body.final === true,
+        getResponseSheet()
+      );
+      return jsonOut(batch);
+    } catch (err) {
+      Logger.log('doAdminPrint (batch) error: ' + err);
+      return jsonOut({ ok: false, error: 'generate_failed', detail: err.toString() });
+    }
+  }
+
   var row = parseInt(body.row, 10);
   if (!row || row < 2) return jsonOut({ ok: false, error: 'invalid_row' });
   try {

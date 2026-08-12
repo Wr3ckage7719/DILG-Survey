@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { toast } from 'sonner';
-import { ArrowRight, ChevronDown, ChevronLeft } from 'lucide-react';
+import { ArrowRight, ChevronDown, ChevronLeft, Copy, Check } from 'lucide-react';
 
 import { type FormData, SECTIONS, SECTION_LABELS, INITIAL_FORM, type Language } from './types';
 import { DISCLAIMER } from './data/questions';
@@ -106,6 +106,8 @@ function Survey() {
   const [sectionIdx, setSectionIdx] = useState(0);
   const [form, setForm] = useState<FormData>(INITIAL_FORM);
   const [submitted, setSubmitted] = useState(false);
+  const [submittedRef, setSubmittedRef] = useState('');
+  const [refCopied, setRefCopied] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [consentChecked, setConsentChecked] = useState(false);
   const [errors, setErrors] = useState<Record<string, boolean>>({});
@@ -258,22 +260,28 @@ function Survey() {
     const ref = generateRefNumber();
 
     // Pre-submit readiness gate: ensure the Apps Script instance is warm so the
-    // POST (~2-3s when warm) succeeds on the first try. The first submission of
-    // a session can still hit a cold instance — "Preparing system…" reassures
-    // the client while the gate blocks (up to ~45s). If the gate times out we
-    // proceed anyway: the POST flow below has its own cold-start recovery.
+    // POST (~2-3s when warm) succeeds on the first try. The warm-up is FIRE AND
+    // FORGET — never awaited — because a blocking wait is a full extra round
+    // trip on the critical path: during a Google-edge slow window that alone
+    // added 15-45s before the POST even started (the delay users felt). The
+    // instance is normally already warm (the form pings every 60s + the Apps
+    // Script keep-warm trigger), so this is just belt-and-suspenders: the POST
+    // flow below has its own cold-start recovery (30s attempt + ref-lookup +
+    // retry), and the ref-watch confirms the row the moment it lands.
     setSubmitStage('preparing');
     const abortRefWatch = new AbortController();
     let slowTimer: ReturnType<typeof setTimeout> | undefined;
     let verySlowTimer: ReturnType<typeof setTimeout> | undefined;
 
     try {
-      await ensureEndpointWarm();
+      // Fire-and-forget warm-up (skips instantly when the last warm-up is
+      // fresh). Bounded so a hung edge can't spin background retries for long.
+      void ensureEndpointWarm(12_000);
 
       // Progress messaging: reassure the client while they wait. Thresholds are
       // generous — the fast-success ref-watch below typically confirms within
       // ~5-9s, under the slow threshold, so the happy path shows no warning.
-      // Timers start only after the gate, so the warnings track the POST wait.
+      // Timers start with the POST, so the warnings track the POST wait.
       setSubmitStage('normal');
       slowTimer = setTimeout(() => setSubmitStage('slow'), 10_000);
       verySlowTimer = setTimeout(() => setSubmitStage('verySlow'), 30_000);
@@ -293,7 +301,9 @@ function Survey() {
         if (settled) return;
         settled = true;
         abortRefWatch.abort();
+        setSubmittedRef(ref);
         setSubmitted(true);
+        console.debug(`[submit] success screen at +${Date.now() - submitStartedAt}ms`);
         toast.success(t('toast.submitted'));
       };
       const finishFailure = (result: SubmitResult) => {
@@ -301,12 +311,16 @@ function Survey() {
         settled = true;
         abortRefWatch.abort();
         navigator.vibrate?.([120, 60, 120]);
+        console.debug(`[submit] failure at +${Date.now() - submitStartedAt}ms code=${result.code}`);
         toast.error(result.error || t('toast.failed'));
       };
 
       // Fast path: the moment the row appears in the sheet, show success.
       refWatchDone.then((saved) => {
-        if (saved) finishSuccess();
+        if (saved) {
+          console.debug(`[submit] row confirmed via ref-watch at +${Date.now() - submitStartedAt}ms`);
+          finishSuccess();
+        }
       });
 
       // Main path: the POST flow (up to 2 auto-retries with the SAME refNumber
@@ -346,6 +360,7 @@ function Survey() {
 
       if (!settled) {
         if (postOutcome.ok) {
+          console.debug(`[submit] POST confirmed ok at +${Date.now() - submitStartedAt}ms`);
           finishSuccess();
         } else {
           // The POST failed, but the row may still be saved (lost response after
@@ -530,6 +545,42 @@ function Survey() {
             <p className="text-muted-foreground text-sm">
               {t('done.message')}
             </p>
+            {submittedRef && (
+              <div className="pt-1">
+                <div className="rounded-2xl border border-primary/15 bg-primary/5 px-4 py-3">
+                  <p className="text-xs text-muted-foreground mb-1.5">{t('done.refLabel')}</p>
+                  <p className="font-mono text-base font-bold text-primary tracking-wide break-all">
+                    {submittedRef}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        await navigator.clipboard.writeText(submittedRef);
+                        setRefCopied(true);
+                        setTimeout(() => setRefCopied(false), 2000);
+                      } catch {
+                        toast.error(t('toast.failed'));
+                      }
+                    }}
+                    className="mt-2.5 inline-flex items-center gap-1.5 text-xs font-semibold text-primary underline underline-offset-4 decoration-primary/40 hover:decoration-primary"
+                  >
+                    {refCopied ? (
+                      <>
+                        <Check className="w-3.5 h-3.5" />
+                        {t('done.refCopied')}
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3.5 h-3.5" />
+                        {t('done.copy')}
+                      </>
+                    )}
+                  </button>
+                </div>
+                <p className="text-xs text-muted-foreground/80 mt-2.5">{t('done.refHint')}</p>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

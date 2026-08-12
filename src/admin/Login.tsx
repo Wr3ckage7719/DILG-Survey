@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { ShieldCheck, Loader2, AlertCircle, ArrowLeft } from 'lucide-react';
-import { adminLogin, setAdminToken } from '../api/admin';
+import { adminLogin, describeAdminError, setAdminToken } from '../api/admin';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -25,15 +25,7 @@ export default function Login({ onLogin }: Props) {
       onLogin(result.token);
       return;
     }
-    setError(
-      result.error === 'invalid_credentials' || result.error === 'unauthorized'
-        ? 'Incorrect password. Please try again.'
-        : result.error === 'too_many_attempts'
-          ? 'Too many failed attempts. Please wait a few minutes and try again.'
-          : result.error === 'not_configured'
-            ? 'Admin is not configured yet. Set ADMIN_PASSWORD in the Apps Script properties.'
-            : 'Unable to sign in. Please try again.',
-    );
+    setError(describeAdminError(result));
     setBusy(false);
   };
 

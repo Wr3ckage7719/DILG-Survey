@@ -43,6 +43,25 @@ const THROTTLE_MAP_CAP = 1000;
 
 const UPSTREAM_TIMEOUT_MS = 58_000; // < maxDuration (60s, Vercel Hobby ceiling) — doc generation may still finish on Google's side after this; the file appears in the Drive output folder either way.
 const MAX_BODY_BYTES = 16 * 1024;
+// Batch doc generation runs in chunks (the client sends ~8 rows per call and
+// continues with the returned masterDocId). This cap guards the upstream call
+// against a misbehaving client, not a feature limit.
+const MAX_BATCH_ROWS_PER_CALL = 12;
+
+// Google's Apps Script /exec edge runs bot protection: it 404s datacenter
+// POSTs that carry no browser-like User-Agent (verified live — the fetch was
+// answered with a 404 ppConfig challenge page, and 200 with this header).
+// The fetch() default UA (none) silently broke the admin API from Vercel.
+const UPSTREAM_UA =
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36';
+// Full browser-ish header set. Google's challenge sometimes keys on more than
+// the UA alone, so mimic a Chrome fetch as closely as a server can.
+const UPSTREAM_HEADERS: Record<string, string> = {
+  'Content-Type': 'application/json',
+  'User-Agent': UPSTREAM_UA,
+  Accept: 'application/json, text/plain, */*',
+  'Accept-Language': 'en-US,en;q=0.9',
+};
 
 /* ─── Helpers ─── */
 function sendJson(res: ServerResponse, status: number, obj: unknown): void {
@@ -154,32 +173,70 @@ function verifyToken(token: unknown): boolean {
 async function forwardToAppsScript(
   action: string,
   payload: Record<string, unknown>,
+  options: { attempts?: number; attemptTimeoutMs?: number; retryOnTimeout?: boolean } = {},
 ): Promise<{ status: number; json: Record<string, unknown> | null }> {
   if (!APPS_SCRIPT_URL) return { status: 500, json: { ok: false, error: 'server_config_error' } };
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), UPSTREAM_TIMEOUT_MS);
-  try {
-    const url = `${APPS_SCRIPT_URL}?action=${encodeURIComponent(action)}&secret=${encodeURIComponent(ADMIN_GS_SECRET)}`;
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-      signal: controller.signal,
-    });
-    const text = await res.text().catch(() => '');
-    let json: Record<string, unknown> | null = null;
+  const attempts = options.attempts ?? 1;
+  const attemptTimeoutMs = options.attemptTimeoutMs ?? UPSTREAM_TIMEOUT_MS;
+  const retryOnTimeout = options.retryOnTimeout ?? false;
+  const url = `${APPS_SCRIPT_URL}?action=${encodeURIComponent(action)}&secret=${encodeURIComponent(ADMIN_GS_SECRET)}`;
+  const body = JSON.stringify(payload);
+
+  let last: { status: number; json: Record<string, unknown> | null } | null = null;
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    if (attempt > 0) await new Promise((r) => setTimeout(r, 800 * attempt));
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), attemptTimeoutMs);
     try {
-      json = text ? JSON.parse(text) : null;
-    } catch {
-      json = null;
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: UPSTREAM_HEADERS,
+        body,
+        signal: controller.signal,
+      });
+      const text = await res.text().catch(() => '');
+      let json: Record<string, unknown> | null = null;
+      try {
+        json = text ? JSON.parse(text) : null;
+      } catch {
+        json = null;
+      }
+      // A real Apps Script JSON answer is never retried — later attempts could
+      // double-execute side effects (row writes, doc creation).
+      if (json) return { status: res.status, json };
+      // Non-JSON upstream body = Google served an error page instead of the
+      // API ("This content is blocked" HTML, a 404 page, or the intermittent
+      // datacenter bot-challenge that 404s with an HTML page — verified live:
+      // the same POST returns 200 JSON from some Vercel egress IPs and a 404
+      // HTML challenge from others). Not a real answer, so retry when budget
+      // remains: the next invocation may egress from a different IP.
+      last = {
+        status: res.status,
+        json: {
+          ok: false,
+          error: 'upstream_bad_response',
+          detail: `upstream_http_${res.status}`,
+        },
+      };
+    } catch (err) {
+      const aborted = err && typeof err === 'object' && (err as { name?: string }).name === 'AbortError';
+      last = {
+        status: aborted ? 504 : 502,
+        json: {
+          ok: false,
+          error: aborted ? 'upstream_timeout' : 'upstream_unreachable',
+          detail: aborted ? 'timeout' : 'network',
+        },
+      };
+      // Timeouts on side-effecting actions are ambiguous (the doc/row may land
+      // anyway) — stop retrying those. Read-only actions (login, responses)
+      // retry freely, since a re-check is always safe.
+      if (aborted && !retryOnTimeout) break;
+    } finally {
+      clearTimeout(timer);
     }
-    return { status: res.status, json };
-  } catch (err) {
-    const aborted = err && typeof err === 'object' && (err as { name?: string }).name === 'AbortError';
-    return { status: 504, json: { ok: false, error: 'upstream_timeout', detail: aborted ? 'timeout' : 'upstream_error' } };
-  } finally {
-    clearTimeout(timer);
   }
+  return last || { status: 502, json: { ok: false, error: 'upstream_unreachable', detail: 'network' } };
 }
 
 /* ─── Route handlers ─── */
@@ -220,7 +277,13 @@ async function handleLogin(req: IncomingMessage, res: ServerResponse): Promise<v
     return;
   }
 
-  const upstream = await forwardToAppsScript('login', { password: body.password || '' });
+  // Read-only upstream check — retry freely through transient bot-challenges.
+  // 3 × 19s ≈ 57s stays under the 60s Hobby ceiling.
+  const upstream = await forwardToAppsScript(
+    'login',
+    { password: body.password || '' },
+    { attempts: 3, attemptTimeoutMs: 19_000, retryOnTimeout: true },
+  );
   const json = upstream.json || { ok: false, error: 'upstream_error' };
   if (json.ok !== true) {
     recordLoginFailure(ip, now, recent);
@@ -264,7 +327,12 @@ async function handleResponses(req: IncomingMessage, res: ServerResponse): Promi
     return;
   }
   recordResponseCall(ip, now, recent);
-  const upstream = await forwardToAppsScript('responses', { token: body.token });
+  // Read-only upstream call — retry freely through transient bot-challenges.
+  const upstream = await forwardToAppsScript(
+    'responses',
+    { token: body.token },
+    { attempts: 3, attemptTimeoutMs: 19_000, retryOnTimeout: true },
+  );
   const json = upstream.json || { ok: false, error: 'upstream_error' };
   sendJson(res, json.ok === true ? 200 : upstream.status, json);
 }
@@ -279,7 +347,7 @@ async function handlePrint(req: IncomingMessage, res: ServerResponse): Promise<v
     sendJson(res, 400, { ok: false, error: 'invalid_body' });
     return;
   }
-  let body: { token?: string; row?: number; tpl?: string };
+  let body: { token?: string; row?: number; tpl?: string; rows?: number[]; masterDocId?: string; final?: boolean; pdfDocId?: string };
   try {
     body = JSON.parse(bodyStr);
   } catch {
@@ -290,6 +358,49 @@ async function handlePrint(req: IncomingMessage, res: ServerResponse): Promise<v
     sendJson(res, 401, { ok: false, error: 'unauthorized' });
     return;
   }
+
+  // Batch mode: rows[] → one document with one filled form per row. The client
+  // splits a large selection into chunks and threads the masterDocId through;
+  // the last chunk sets final=true and receives the document URL.
+  if (Array.isArray(body.rows)) {
+    const rows = body.rows.map(Number);
+    if (rows.length === 0 || rows.some((r) => !Number.isInteger(r) || r < 2)) {
+      sendJson(res, 400, { ok: false, error: 'invalid_rows' });
+      return;
+    }
+    if (rows.length > MAX_BATCH_ROWS_PER_CALL) {
+      sendJson(res, 400, {
+        ok: false,
+        error: 'batch_too_large',
+        detail: `Select ${MAX_BATCH_ROWS_PER_CALL} or fewer responses per batch step.`,
+      });
+      return;
+    }
+    const upstream = await forwardToAppsScript('print', {
+      token: body.token,
+      rows,
+      masterDocId: body.masterDocId || '',
+      final: body.final === true,
+      tpl: body.tpl || 'auto',
+    });
+    const json = upstream.json || { ok: false, error: 'upstream_error' };
+    sendJson(res, json.ok === true ? 200 : upstream.status, json);
+    return;
+  }
+
+  // PDF-only export for an already-finished batch document. The client calls
+  // this after the final merge chunk so the heavy conversion never sits inside
+  // the same 58s budget as the merges (which is what timed batch runs out).
+  if (body.pdfDocId) {
+    const upstream = await forwardToAppsScript('print', {
+      token: body.token,
+      pdfDocId: body.pdfDocId,
+    });
+    const json = upstream.json || { ok: false, error: 'upstream_error' };
+    sendJson(res, json.ok === true ? 200 : upstream.status, json);
+    return;
+  }
+
   const row = Number(body.row);
   if (!Number.isInteger(row) || row < 2) {
     sendJson(res, 400, { ok: false, error: 'invalid_row' });
