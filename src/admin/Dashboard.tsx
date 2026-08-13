@@ -70,6 +70,10 @@ export default function Dashboard({ token, onLogout }: Props) {
   const [batchRunning, setBatchRunning] = useState(false);
   const [batchUrl, setBatchUrl] = useState<string | null>(null);
   const [batchPartialDocId, setBatchPartialDocId] = useState<string | null>(null);
+  // Placeholder tokens the merge could not fill anywhere in the batch document
+  // (e.g. letterhead keys in the doc header) — surfaced so a raw {{...}} never
+  // ships silently.
+  const [batchLeftovers, setBatchLeftovers] = useState<string[] | null>(null);
   // Where a timed-out chunk stopped, so "Retry timed out" can resume the SAME
   // master document (skip already-merged rows) instead of starting a duplicate.
   // batchResumeChunk: chunk index to re-run from; batchResumeMasterId: master
@@ -212,6 +216,7 @@ export default function Dashboard({ token, onLogout }: Props) {
       setBatchResumeChunk(null);
       setBatchResumeMasterId(null);
       if (result.docId) masterDocId = result.docId;
+      if (result.leftovers && result.leftovers.length) setBatchLeftovers(result.leftovers);
       chunk.forEach((row) => {
         if (result.failedRows && result.failedRows.includes(row)) {
           tick(row, { status: 'error', error: 'This response could not be included in the batch document.' });
@@ -245,6 +250,7 @@ export default function Dashboard({ token, onLogout }: Props) {
     setBatchChunkIdx(0);
     setBatchResumeChunk(null);
     setBatchResumeMasterId(null);
+    setBatchLeftovers(null);
     const items: BatchItem[] = selectedRowsInDisplay().map((r) => ({
       row: r.__row,
       label: rowRef(r) || `Row ${r.__row}`,
@@ -296,6 +302,7 @@ export default function Dashboard({ token, onLogout }: Props) {
     setBatchItems(null);
     setBatchUrl(null);
     setBatchPartialDocId(null);
+    setBatchLeftovers(null);
     setBatchResumeChunk(null);
     setBatchResumeMasterId(null);
     clearSelection();
@@ -542,6 +549,25 @@ export default function Dashboard({ token, onLogout }: Props) {
                     Saved to the Drive output folder as a Google Doc + PDF.
                   </p>
                 </div>
+              </div>
+            )}
+
+            {/* Unfilled placeholders (e.g. letterhead keys in the doc header) */}
+            {batchLeftovers && batchLeftovers.length > 0 && !batchRunning && (
+              <div
+                role="alert"
+                className="flex items-start gap-2 rounded-xl border border-amber-300 bg-amber-50 px-3.5 py-3 text-amber-800"
+              >
+                <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                <span className="space-y-1 block text-xs">
+                  <span className="block font-semibold">Some placeholders could not be filled:</span>
+                  <span className="block font-mono break-all">{batchLeftovers.join('  ')}</span>
+                  <span className="block opacity-80">
+                    Likely in the document letterhead/header section — move those placeholders
+                    into the document body, or run DILG Survey → Deployment Diagnostics and send
+                    the output.
+                  </span>
+                </span>
               </div>
             )}
 

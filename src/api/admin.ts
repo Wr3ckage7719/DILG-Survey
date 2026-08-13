@@ -27,6 +27,9 @@ export interface AdminPrintResult {
   url?: string;
   error?: string;
   detail?: string;
+  /** Placeholder tokens the merge could not fill (e.g. letterhead keys in the
+   *  document header section). Absent/empty = fully filled. */
+  leftovers?: string[];
   /** True when the session token was rejected — the UI should log out. */
   unauthorized?: boolean;
 }
@@ -39,6 +42,8 @@ export interface AdminBatchPrintResult {
   docId?: string;
   /** Rows that could not be included (skipped without aborting the batch). */
   failedRows?: number[];
+  /** Placeholder tokens the merge could not fill anywhere in the document. */
+  leftovers?: string[];
   error?: string;
   detail?: string;
   /** True when the session token was rejected — the UI should log out. */

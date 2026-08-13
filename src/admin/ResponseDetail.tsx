@@ -5,6 +5,7 @@ import {
   FileText,
   Loader2,
   AlertCircle,
+  AlertTriangle,
   ExternalLink,
 } from 'lucide-react';
 import {
@@ -384,6 +385,9 @@ export default function ResponseDetail({ row, token, onBack, onUnauthorized }: P
   // True when the failure is upstream (network / bad response / config) — the
   // template hint would be misleading here, so a config hint is shown instead.
   const [genUnreachable, setGenUnreachable] = useState(false);
+  // Placeholder tokens the merge could not fill (e.g. letterhead keys in the
+  // document header section) — surfaced so a raw {{...}} never ships silently.
+  const [genLeftovers, setGenLeftovers] = useState<string[] | null>(null);
   // Animation stage while generating: 0 sending → 1 building → 2 still working.
   const [genStage, setGenStage] = useState(0);
 
@@ -419,6 +423,7 @@ export default function ResponseDetail({ row, token, onBack, onUnauthorized }: P
     setGenUrl('');
     setGenAmbiguous(false);
     setGenUnreachable(false);
+    setGenLeftovers(null);
     const tab = window.open('', '_blank');
     const tabTimers: number[] = [];
     if (tab) {
@@ -439,6 +444,7 @@ export default function ResponseDetail({ row, token, onBack, onUnauthorized }: P
       // Archival action: the spreadsheet engine drops the official doc + PDF
       // into the Drive output folder. Point the pre-opened tab at it.
       setGenUrl(result.url);
+      if (result.leftovers && result.leftovers.length) setGenLeftovers(result.leftovers);
       stopTabTimers();
       try {
         if (tab && !tab.closed) tab.location.href = result.url;
@@ -569,6 +575,23 @@ export default function ResponseDetail({ row, token, onBack, onUnauthorized }: P
               <ExternalLink className="w-4 h-4" />
               Printable document generated — open it in a new tab
             </a>
+          )}
+          {genLeftovers && genLeftovers.length > 0 && (
+            <div
+              role="alert"
+              className="flex items-start gap-2 text-sm text-amber-800 bg-amber-50 rounded-xl px-3 py-2.5"
+            >
+              <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+              <span className="space-y-1 block">
+                <span className="block font-semibold">Some placeholders could not be filled:</span>
+                <span className="block font-mono text-xs break-all">{genLeftovers.join('  ')}</span>
+                <span className="block text-xs opacity-80">
+                  Likely in the document letterhead/header section — if so, move those
+                  placeholders into the document body, or run DILG Survey → Deployment
+                  Diagnostics and send the output.
+                </span>
+              </span>
+            </div>
           )}
         </div>
 

@@ -15,10 +15,13 @@
 // The Apps Script web app sleeps after ~6 minutes of idle time; a cold POST
 // takes ~27-40s. A time-driven trigger pings this URL every minute so the
 // deployment never goes idle (warm POSTs complete in ~1-3s). The URL constant
-// below is the LIVE deployment; if a new deployment is ever created, store its
-// URL in the script property 'WEBAPP_URL' (or update this constant) BEFORE
-// changing it.
-var WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbxIYA2rSfdip7Zb40uY56OTIjDHGBsZDR5nIyCBRG6DbdLd2YkedAdv558JToN6mzzx/exec';
+// below is the LIVE deployment — it MUST match the deployment that Vercel's
+// APPS_SCRIPT_URL points to. If a new deployment is ever created, update BOTH
+// this constant (or the script property 'WEBAPP_URL') AND the Vercel env var
+// BEFORE switching. A stale constant lets the live deployment go cold, which
+// was the root cause of the "admin is slow" reports (20-40s on every login
+// and data fetch even though the keep-warm trigger was installed).
+var WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbxGAbSu3N1x0iVaKGLmLIi8JgrR6mpmAdH00-rjCJZDldT_n6R1iUlqtz-sPPDjRUH3/exec';
 
 function getWebAppUrl() {
   var prop = SCRIPT_PROP ? SCRIPT_PROP.getProperty('WEBAPP_URL') : null;
@@ -94,12 +97,24 @@ function refExists(sheet, refCol, ref) {
 // function re-verifies it too before forwarding).
 //
 // Script Properties to configure (Extensions → Properties → Script properties):
-//   ADMIN_PASSWORD    — the admin dashboard password
-//   ADMIN_API_SECRET  — shared secret with the Vercel env ADMIN_GS_SECRET
+//   ADMIN_PASSWORD      — the admin dashboard password
+//   ADMIN_API_SECRET    — shared secret with the Vercel env ADMIN_GS_SECRET
+//   RESPONSES_TAB_NAME  — optional: pin the tab that holds survey responses
+//                         (mirrors Vercel's SHEET_TAB_NAME). Default detection:
+//                         'Form Responses 1' → first tab with Reference Number.
+//   WEBAPP_URL          — optional: live web app URL for keep-warm (falls back
+//                         to the WEBAPP_URL constant above)
 
 var ADMIN_TOKEN_TTL_MS = 4 * 60 * 60 * 1000; // 4 hours (shorter = smaller PII exposure window)
 var ADMIN_LOGIN_MAX_FAILS = 10;
 var ADMIN_LOGIN_WINDOW_MIN = 10;
+
+// Responses list: short-TTL script-cache so repeat loads (page open, refresh,
+// search) don't re-read the whole sheet every time. Script cache is project-
+// scoped; the endpoint stays rate-limited and the Vercel layer still sends
+// Cache-Control: no-store to the browser.
+var RESPONSES_CACHE_KEY = 'ADMIN_RESPONSES_V1';
+var RESPONSES_CACHE_TTL_SECONDS = 12;
 
 function adminSecret() {
   return SCRIPT_PROP.getProperty('ADMIN_API_SECRET') || '';
@@ -109,13 +124,44 @@ function adminPassword() {
   return SCRIPT_PROP.getProperty('ADMIN_PASSWORD') || '';
 }
 
-// The responses live on the sheet the survey writes to. Prefer the conventional
-// Google-Forms-linked sheet name; fall back to the active sheet (the submit
-// path's behavior). Pinning avoids reading a tab someone happened to select in
-// the spreadsheet UI — the admin list and doc generation must agree on a sheet.
+// The responses live on the sheet the survey writes to. The submit fast path
+// pins its tab via Vercel's SHEET_TAB_NAME (e.g. 'Survey Data'); the Apps
+// Script mirrors that with the RESPONSES_TAB_NAME script property. Detection
+// order:
+//   1. RESPONSES_TAB_NAME property (when set),
+//   2. the conventional Google-Forms-linked 'Form Responses 1' — only when its
+//      header row contains the Reference Number column (an empty or foreign
+//      tab must not shadow the real data),
+//   3. the first tab whose header row has Reference Number (the fast path's
+//      own marker — guarantees the admin list and doc generation agree with
+//      where submissions land),
+//   4. fallback: the active sheet (historical behavior).
 function getResponseSheet() {
-  var named = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Form Responses 1');
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var pinned = SCRIPT_PROP.getProperty('RESPONSES_TAB_NAME');
+  if (pinned) {
+    var p = ss.getSheetByName(pinned);
+    if (p) return p;
+  }
+  var named = ss.getSheetByName('Form Responses 1');
+  if (named && sheetHasSurveyHeaders(named)) return named;
+  var sheets = ss.getSheets();
+  for (var i = 0; i < sheets.length; i++) {
+    if (sheetHasSurveyHeaders(sheets[i])) return sheets[i];
+  }
   return named || SpreadsheetApp.getActiveSheet();
+}
+
+// Whether a tab's header row contains the survey's idempotency marker column.
+function sheetHasSurveyHeaders(sheet) {
+  try {
+    if (sheet.getLastRow() < 1 || sheet.getLastColumn() < 1) return false;
+    var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+    for (var i = 0; i < headers.length; i++) {
+      if (String(headers[i]).indexOf('Reference Number') !== -1) return true;
+    }
+  } catch (e) { /* best-effort — treat unreadable sheets as non-matching */ }
+  return false;
 }
 
 function signPayload(payloadStr) {
@@ -190,6 +236,17 @@ function doAdminResponses(body, e) {
   if (!verifyAdminToken(body.token)) {
     return jsonOut({ ok: false, error: 'unauthorized' });
   }
+  // Short-TTL cache hit: the list is read in full on every call and repeat
+  // loads are the common case. Fresh enough that a just-submitted response
+  // appears on the next load; on a miss the sheet is read as before.
+  var cache = CacheService.getScriptCache();
+  var cached = cache.get(RESPONSES_CACHE_KEY);
+  if (cached) {
+    try {
+      var cachedPayload = JSON.parse(cached);
+      if (cachedPayload && cachedPayload.rows) return jsonOut(cachedPayload);
+    } catch (e) { /* malformed cache — fall through to a fresh read */ }
+  }
   try {
     var sheet = getResponseSheet();
     var lastCol = sheet.getLastColumn();
@@ -215,7 +272,11 @@ function doAdminResponses(body, e) {
         rows.push(obj);
       }
     }
-    return jsonOut({ ok: true, headers: headers, rows: rows, count: rows.length });
+    var payload = { ok: true, headers: headers, rows: rows, count: rows.length };
+    try {
+      cache.put(RESPONSES_CACHE_KEY, JSON.stringify(payload), RESPONSES_CACHE_TTL_SECONDS);
+    } catch (e) { /* cache is best-effort */ }
+    return jsonOut(payload);
   } catch (err) {
     Logger.log('doAdminResponses error: ' + err);
     return jsonOut({ ok: false, error: 'list_failed', detail: err.toString() });
@@ -275,7 +336,15 @@ function doAdminPrint(body, e) {
     // pinned so the doc is generated from the SAME sheet the list came from.
     var result = generatePrintableForRow(row, body.tpl || 'auto', getResponseSheet());
     if (result && result.indexOf('https://') === 0) {
-      return jsonOut({ ok: true, url: result });
+      var out = { ok: true, url: result };
+      // Surface any unfilled {{...}} (e.g. letterhead keys in the document
+      // header section, which body-only replaceText cannot reach) instead of
+      // silently shipping a raw placeholder.
+      try {
+        var leftovers = countLeftoverPlaceholders(DocumentApp.openByUrl(result));
+        if (leftovers.length) out.leftovers = leftovers;
+      } catch (e) { /* leftover check is best-effort */ }
+      return jsonOut(out);
     }
     return jsonOut({ ok: false, error: 'generate_failed', detail: String(result || '') });
   } catch (err) {

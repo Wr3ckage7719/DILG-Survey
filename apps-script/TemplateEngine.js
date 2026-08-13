@@ -619,6 +619,46 @@ function mergeResponseIntoDoc(doc, data, isEnglish) {
     });
   });
 
+  // ── 2b. Document header section (letterhead) ──
+  // Body-only replaceText never reaches placeholders in the real document
+  // header (Google Docs letterhead). Fill the same simple fields + radio marks
+  // there so a letterhead that repeats on every page never ships raw {{...}}.
+  // Re-computes the marks with the SAME rules as the body block — kept as a
+  // separate block so the body fill above stays byte-identical for the tests.
+  var headerSec = doc.getHeader();
+  if (headerSec) {
+    var headerText = headerSec.getText();
+    if (headerText && headerText.indexOf('{{') !== -1) {
+      HEADER_SIMPLE_FIELDS.forEach(function(hf) {
+        var hv = simpleValues[hf.match];
+        if (hv !== null) headerSec.replaceText(ciPattern(hf.match), hv);
+      });
+      radioFieldTitles.forEach(function(hft) {
+        var hMap = optionMapFor(hft, isEnglish);
+        var hSel = getFieldValue(data, hft);
+        var hMarks = {};
+        Object.keys(hMap).forEach(function(hl) {
+          var hk = hMap[hl];
+          var hm;
+          if (CC_NA_KEYS.indexOf(hk) !== -1 && !hSel && cc1NotAware) {
+            hm = '☑';
+          } else {
+            hm = textEquals(hSel, hl) ? '☑' : '☐';
+          }
+          if (!hMarks[hk] || hm === '☑') hMarks[hk] = hm;
+        });
+        Object.keys(hMarks).forEach(function(hk2) {
+          fillRadioKey(headerSec, hk2, hMarks[hk2], glyph);
+        });
+      });
+      var hLeft = headerSec.getText().match(/\{\{[^{}]+\}\}/g);
+      if (hLeft && hLeft.length) {
+        Logger.log('WARNING: ' + hLeft.length + ' placeholders NOT filled in the DOCUMENT HEADER:');
+        hLeft.forEach(function(p) { Logger.log('  ' + p); });
+      }
+    }
+  }
+
   // ── 3. SQD grid via table ──
   fillSqdTable(body, data);
 
@@ -927,6 +967,26 @@ function fillRadioKey(body, key, mark, glyph) {
     // 3. plain {{key}} with no glyph prefix (Tagalog template style)
     body.replaceText(ciPattern(v), mark);
   });
+}
+
+// Unique leftover {{...}} tokens in a finished document — BODY and the real
+// document HEADER section (a letterhead placeholder is invisible to a body-only
+// scan). Used by the admin print/batch responses to surface fill failures
+// instead of silently shipping a raw placeholder.
+function countLeftoverPlaceholders(doc) {
+  var found = [];
+  var scan = function(text) {
+    var m = String(text || '').match(/\{\{[^{}]+\}\}/g) || [];
+    for (var i = 0; i < m.length; i++) {
+      if (found.indexOf(m[i]) === -1) found.push(m[i]);
+    }
+  };
+  try { scan(doc.getBody().getText()); } catch (e) { /* best-effort */ }
+  try {
+    var h = doc.getHeader();
+    if (h) scan(h.getText());
+  } catch (e) { /* best-effort */ }
+  return found;
 }
 
 // ──────────────────────────────────
@@ -1525,6 +1585,10 @@ function generateBatchPrintableLocked(rowIndexes, templateChoice, masterDocId, i
     masterDoc.saveAndClose();
     var partial = { ok: true, docId: masterDocId };
     if (failures.length) partial.failedRows = failures;
+    try {
+      var pLeft = countLeftoverPlaceholders(DocumentApp.openById(masterDocId));
+      if (pLeft.length) partial.leftovers = pLeft;
+    } catch (e) { /* best-effort */ }
     return partial;
   }
 
@@ -1538,6 +1602,10 @@ function generateBatchPrintableLocked(rowIndexes, templateChoice, masterDocId, i
   var masterFileFinal = DriveApp.getFileById(masterDocId);
   var result = { ok: true, url: masterFileFinal.getUrl(), docId: masterDocId };
   if (failures.length) result.failedRows = failures;
+  try {
+    var fLeft = countLeftoverPlaceholders(DocumentApp.openById(masterDocId));
+    if (fLeft.length) result.leftovers = fLeft;
+  } catch (e) { /* best-effort */ }
   return result;
 }
 
