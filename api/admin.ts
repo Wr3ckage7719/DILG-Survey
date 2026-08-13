@@ -347,7 +347,7 @@ async function handlePrint(req: IncomingMessage, res: ServerResponse): Promise<v
     sendJson(res, 400, { ok: false, error: 'invalid_body' });
     return;
   }
-  let body: { token?: string; row?: number; tpl?: string; rows?: number[]; masterDocId?: string; final?: boolean; pdfDocId?: string };
+  let body: { token?: string; row?: number; tpl?: string; rows?: number[]; masterDocId?: string; final?: boolean; pdfDocId?: string; resume?: boolean };
   try {
     body = JSON.parse(bodyStr);
   } catch {
@@ -382,6 +382,7 @@ async function handlePrint(req: IncomingMessage, res: ServerResponse): Promise<v
       masterDocId: body.masterDocId || '',
       final: body.final === true,
       tpl: body.tpl || 'auto',
+      resume: body.resume === true,
     });
     const json = upstream.json || { ok: false, error: 'upstream_error' };
     sendJson(res, json.ok === true ? 200 : upstream.status, json);

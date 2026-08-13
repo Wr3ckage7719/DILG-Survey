@@ -15,7 +15,7 @@
 // If the "Diagnose Deployment" menu reports anything other than this,
 // the Apps Script project is running STALE code (files not re-pasted).
 // ──────────────────────────────────
-var MERGE_VERSION = 'v6-batch-spacing-fix';
+var MERGE_VERSION = 'v7-batch-resume';
 
 // ──────────────────────────────────
 // Radio groups: field title → { option label → exact template key }
@@ -868,7 +868,6 @@ function appendRowEntry(masterBody, rowIndex, templateChoice, sheet, outputFolde
   var tplFile = DriveApp.getFileById(tplId);
   var tempFile = null;
   var tempDoc = null;
-  var filled = null;
   var appendedCount = 0;
   var fromIndex = 0;
 
@@ -883,9 +882,10 @@ function appendRowEntry(masterBody, rowIndex, templateChoice, sheet, outputFolde
     try {
       tempDoc = openDocWithRetry(tempFile.getId());
       mergeResponseIntoDoc(tempDoc, data, isEnglish);
-      tempDoc.saveAndClose();
-      // Reopen for a clean read of the filled body (cached handles can lag).
-      filled = DocumentApp.openById(tempFile.getId());
+      // Use the SAME handle that was just merged. Reopening the fresh Drive copy
+      // cost ~2-5s per entry inside the Vercel 58s window for no benefit: a
+      // stale copy surfaces as an empty append below, and the retry loop
+      // already rebuilds from a fresh copy.
       masterBody.appendPageBreak();
       // Remove the master's trailing empty paragraph(s) now sandwiched between
       // the previous entry's content and this break — otherwise one wraps onto
@@ -893,9 +893,9 @@ function appendRowEntry(masterBody, rowIndex, templateChoice, sheet, outputFolde
       // (blank page between entries).
       removeEmptyParagraphsBeforePageBreak(masterBody);
       fromIndex = masterBody.getNumChildren();
-      appendBodyElements(masterBody, filled.getBody());
+      appendBodyElements(masterBody, tempDoc.getBody());
       appendedCount = masterBody.getNumChildren() - fromIndex;
-      filled.saveAndClose();
+      tempDoc.saveAndClose();
       if (appendedCount > 0) break; // success
       // Empty append — undo the page break, then retry once with a fresh copy.
       if (attempt === 1) throw new Error('Template copy yielded no content after 2 attempts (Drive propagation).');
@@ -976,11 +976,73 @@ function findSpacingFaults(body) {
   return faults;
 }
 
+// ──────────────────────────────────
+// Batch progress & resume
+// ──────────────────────────────────
+// Every batch master keeps a per-document progress list (ScriptProperties keyed
+// by the master's doc id) recording which spreadsheet rows have already been
+// merged into it. Chunks that arrive after a timeout can therefore re-run
+// safely: already-done rows are skipped, so a retry never duplicates an entry.
+// The most recent in-progress master is also remembered so a chunk-1 timeout
+// (where the client never learned the master's id) can still resume the same
+// document instead of starting a second one.
+function batchProgressKey(docId) { return 'BATCH_PROGRESS_' + docId; }
+
+function readBatchDoneRows(docId) {
+  var raw = SCRIPT_PROP.getProperty(batchProgressKey(docId));
+  if (!raw) return [];
+  try {
+    var arr = JSON.parse(raw);
+    return Array.isArray(arr) ? arr : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function writeBatchDoneRows(docId, rows) {
+  SCRIPT_PROP.setProperty(batchProgressKey(docId), JSON.stringify(rows));
+}
+
+function readLastBatchMaster() {
+  var raw = SCRIPT_PROP.getProperty('BATCH_LAST_MASTER');
+  if (!raw) return null;
+  try {
+    var obj = JSON.parse(raw);
+    return (obj && obj.docId) ? obj : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+function writeLastBatchMaster(docId, rows) {
+  SCRIPT_PROP.setProperty('BATCH_LAST_MASTER', JSON.stringify({ docId: docId, ts: Date.now(), rows: rows || [] }));
+}
+
+// Pure decision: can `lastMaster` be resumed for `rowIndexes`? Only when it is
+// recent enough AND at least one of the requested rows already lives in it.
+function selectResumableMaster(lastMaster, rowIndexes, nowMs, maxAgeMs) {
+  if (!lastMaster || !lastMaster.docId) return null;
+  if (nowMs - (lastMaster.ts || 0) > (maxAgeMs || 15 * 60 * 1000)) return null;
+  var rows = (lastMaster.rows || []).map(Number);
+  for (var i = 0; i < rowIndexes.length; i++) {
+    if (rows.indexOf(Number(rowIndexes[i])) !== -1) return lastMaster;
+  }
+  return null;
+}
+
+function findResumableMaster(rowIndexes) {
+  return selectResumableMaster(readLastBatchMaster(), rowIndexes, Date.now(), 15 * 60 * 1000);
+}
+
 // rowIndexes: array of spreadsheet row numbers (>= 2)
 // templateChoice: 'auto' | 'en' | 'tl'
 // masterDocId: id of the batch document from a previous chunk ('' on the first)
-// isFinal: last chunk — export the PDF and return the doc URL
-function generateBatchPrintable(rowIndexes, templateChoice, masterDocId, isFinal, sheet) {
+// isFinal: last chunk — hand back the doc URL (PDF export is a separate call)
+// resume: explicit opt-in for the timeout-retry path — when masterDocId is '',
+//         reuse the most recent in-progress master that already holds some of
+//         these rows (a chunk-1 call that timed out AFTER creating the master).
+//         Fresh batches never set this, so a normal run always starts a new doc.
+function generateBatchPrintable(rowIndexes, templateChoice, masterDocId, isFinal, sheet, resume) {
   sheet = sheet || SpreadsheetApp.getActiveSheet();
   var outputFolder = getOutputFolder();
 
@@ -993,8 +1055,27 @@ function generateBatchPrintable(rowIndexes, templateChoice, masterDocId, isFinal
     }
   }
 
+  // Serialize chunk calls: when a chunk times out at the Vercel relay, the Apps
+  // Script execution keeps running for up to 6 minutes, so a retry can overlap
+  // the original attempt. The lock (plus per-row progress below) makes a retry
+  // safe instead of interleaving appends and duplicating entries.
+  var lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(30000);
+  } catch (e) {
+    return { ok: false, error: 'generate_failed', detail: 'Another batch generation is still running — wait a moment and try again.' };
+  }
+  try {
+    return generateBatchPrintableLocked(rowIndexes, templateChoice, masterDocId, isFinal, resume, sheet, outputFolder);
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function generateBatchPrintableLocked(rowIndexes, templateChoice, masterDocId, isFinal, resume, sheet, outputFolder) {
   var masterDoc;
   var masterBody;
+  var doneRows;
   var startAt = 0;
 
   if (masterDocId) {
@@ -1002,12 +1083,48 @@ function generateBatchPrintable(rowIndexes, templateChoice, masterDocId, isFinal
     try {
       masterDoc = DocumentApp.openById(masterDocId);
       masterBody = masterDoc.getBody();
+      doneRows = readBatchDoneRows(masterDocId);
     } catch (e) {
-      return { ok: false, error: 'generate_failed', detail: 'Cannot open batch document: ' + e.message };
+      // The handed-back id is stale/deleted. Fall back to the most recent
+      // in-progress master if it covers these rows.
+      var staleResume = findResumableMaster(rowIndexes);
+      if (staleResume) {
+        masterDocId = staleResume.docId;
+        try {
+          masterDoc = DocumentApp.openById(masterDocId);
+          masterBody = masterDoc.getBody();
+          doneRows = readBatchDoneRows(masterDocId);
+          if (!doneRows.length) doneRows = staleResume.rows.slice();
+        } catch (e2) {
+          return { ok: false, error: 'generate_failed', detail: 'Cannot open batch document: ' + e2.message };
+        }
+      } else {
+        return { ok: false, error: 'generate_failed', detail: 'Cannot open batch document: ' + e.message };
+      }
     }
-  } else {
-    // Create the master from the FIRST row's template, so the master's own
-    // body becomes the first filled entry (no copy-and-append needed for it).
+  } else if (resume) {
+    // Explicit retry of a timed-out chunk 1: the client never learned the
+    // master's id, but the document may already exist with some rows merged.
+    // Reuse it so the retry appends only the missing rows instead of creating
+    // a second, duplicated document.
+    var resumeMaster = findResumableMaster(rowIndexes);
+    if (resumeMaster) {
+      masterDocId = resumeMaster.docId;
+      try {
+        masterDoc = DocumentApp.openById(masterDocId);
+        masterBody = masterDoc.getBody();
+      } catch (e) {
+        return { ok: false, error: 'generate_failed', detail: 'Cannot open batch document: ' + e.message };
+      }
+      doneRows = readBatchDoneRows(masterDocId);
+      if (!doneRows.length) doneRows = resumeMaster.rows.slice();
+    }
+  }
+
+  if (!masterDocId) {
+    // Fresh batch (or a resume attempt with nothing to resume): create the
+    // master from the FIRST row's template, so the master's own body becomes
+    // the first filled entry (no copy-and-append needed for it).
     var firstData = readResponseRow(rowIndexes[0], sheet);
     var firstEn = resolveTemplateChoice(firstData, templateChoice);
     var firstTplId = firstEn
@@ -1035,24 +1152,37 @@ function generateBatchPrintable(rowIndexes, templateChoice, masterDocId, isFinal
     } catch (e) {
       return { ok: false, error: 'generate_failed', detail: 'Row ' + rowIndexes[0] + ': ' + e.message };
     }
+    masterDocId = masterFile.getId();
+    doneRows = [rowIndexes[0]];
+    writeBatchDoneRows(masterDocId, doneRows);
     startAt = 1;
   }
 
   // Append the remaining rows as fresh filled template copies. A failing row
   // must not sink the whole batch — record it and continue with the next.
+  // Rows already recorded in this master's progress are skipped: a retried
+  // chunk (after a timeout) must never merge an entry twice.
   var failures = [];
   for (var i = startAt; i < rowIndexes.length; i++) {
+    var r = rowIndexes[i];
+    if (doneRows.indexOf(r) !== -1) continue;
     try {
-      appendRowEntry(masterBody, rowIndexes[i], templateChoice, sheet, outputFolder);
+      appendRowEntry(masterBody, r, templateChoice, sheet, outputFolder);
+      doneRows.push(r);
+      writeBatchDoneRows(masterDocId, doneRows);
     } catch (e) {
-      failures.push(rowIndexes[i]);
-      Logger.log('Batch row ' + rowIndexes[i] + ' failed: ' + e);
+      failures.push(r);
+      Logger.log('Batch row ' + r + ' failed: ' + e);
     }
   }
+  // Remember this master as the most recent in-progress batch so a chunk-1
+  // timeout retry can resume it (see findResumableMaster). Updated on EVERY
+  // chunk, so the timestamp reflects the latest activity.
+  writeLastBatchMaster(masterDocId, doneRows);
 
   if (!isFinal) {
     masterDoc.saveAndClose();
-    var partial = { ok: true, docId: masterDoc.getId() };
+    var partial = { ok: true, docId: masterDocId };
     if (failures.length) partial.failedRows = failures;
     return partial;
   }
@@ -1064,8 +1194,8 @@ function generateBatchPrintable(rowIndexes, templateChoice, masterDocId, isFinal
   // past the ~58s budget and timed out (rows left in an ambiguous "may still be
   // in Drive" state even though the document itself completed).
   masterDoc.saveAndClose();
-  var masterFileFinal = DriveApp.getFileById(masterDoc.getId());
-  var result = { ok: true, url: masterFileFinal.getUrl(), docId: masterDoc.getId() };
+  var masterFileFinal = DriveApp.getFileById(masterDocId);
+  var result = { ok: true, url: masterFileFinal.getUrl(), docId: masterDocId };
   if (failures.length) result.failedRows = failures;
   return result;
 }
@@ -1276,6 +1406,84 @@ function runBatchSpacingSelfTest(rowIndex) {
 
   lines.forEach(function(l) { Logger.log(l); });
   ui.alert('Batch Spacing Self-Test', lines.join('\n'), ui.ButtonSet.OK);
+}
+
+// ──────────────────────────────────
+// Real-runtime self-test for the batch resume mechanism. Menu: DILG Survey >
+// Advanced > Batch Resume Self-Test (uses the active row). Exercises the
+// production chunk flow exactly as the admin dashboard does after a timeout:
+//   1. first chunk creates the master (non-final),
+//   2. a repeat call with the same master doc id must SKIP the already-merged
+//      row (idempotency — the guarantee that makes retries safe),
+//   3. a chunk-1-style retry (masterDocId='' + resume flag) must rediscover
+//      the SAME master via the resume handoff instead of creating a second doc.
+// Asserts all three calls return the same doc id, the document holds exactly
+// one header, and no spacing faults. The throwaway master is deleted; the
+// resume handoff + progress key are cleared so the test cannot affect a real
+// batch run afterwards.
+// ──────────────────────────────────
+
+function runBatchResumeSelfTest(rowIndex) {
+  var ui = SpreadsheetApp.getUi();
+  var sheet = SpreadsheetApp.getActiveSheet();
+  if (!rowIndex) {
+    rowIndex = sheet.getActiveCell().getRow();
+    if (rowIndex < 2) rowIndex = 2;
+  }
+
+  var lines = [];
+  var masterDocId = null;
+  try {
+    lines.push('Batch Resume Self-Test — row ' + rowIndex + ' (MERGE_VERSION ' + MERGE_VERSION + ')');
+
+    // 1. First chunk: create the master (non-final).
+    var first = generateBatchPrintable([rowIndex], 'auto', '', false, sheet, false);
+    if (!first.ok || !first.docId) throw new Error('First chunk failed: ' + (first.detail || first.error));
+    masterDocId = first.docId;
+    lines.push('1. First chunk created master docId ' + masterDocId);
+
+    // 2. Idempotent repeat: same docId, row already merged — must skip, not duplicate.
+    var second = generateBatchPrintable([rowIndex], 'auto', masterDocId, false, sheet, false);
+    if (!second.ok || second.docId !== masterDocId) {
+      throw new Error('Repeat chunk did not reuse the master: ' + JSON.stringify(second));
+    }
+    lines.push('2. Repeat chunk reused the same master (no duplicate) ✓');
+
+    // 3. Chunk-1-style timeout retry: no masterDocId, resume flag on — must
+    //    rediscover the same master via the resume handoff, then finalize.
+    var third = generateBatchPrintable([rowIndex], 'auto', '', true, sheet, true);
+    if (!third.ok || !third.url || third.docId !== masterDocId) {
+      throw new Error('Resume retry did not rediscover the master: ' + JSON.stringify(third));
+    }
+    lines.push('3. Resume retry rediscovered the same master and finalized ✓');
+
+    // Structural assertions on the finished document.
+    var doc = DocumentApp.openById(masterDocId);
+    var body = doc.getBody();
+    var full = body.getText();
+    var headerCount = (full.split('DEPARTMENT OF THE INTERIOR').length - 1);
+    if (headerCount !== 1) throw new Error('Expected exactly 1 header, found ' + headerCount);
+    lines.push('4. Header occurrences in document: ' + headerCount + ' / 1 ✓');
+
+    var faults = findSpacingFaults(body);
+    if (faults.length) throw new Error('Spacing faults: ' + faults.join('; '));
+    lines.push('5. Spacing faults: NONE ✓');
+    doc.saveAndClose();
+
+    lines.push('RESULT: PASS ✓ — resume reuses the same document; no duplicates, no blank pages.');
+  } catch (err) {
+    lines.push('SELF-TEST ERROR: ' + err.message);
+    lines.push('RESULT: FAIL ✗ — see details above.');
+  } finally {
+    if (masterDocId) {
+      try { SCRIPT_PROP.deleteProperty(batchProgressKey(masterDocId)); } catch (e) { /* best-effort */ }
+      try { DriveApp.getFileById(masterDocId).setTrashed(true); } catch (e) { /* best-effort */ }
+    }
+    try { SCRIPT_PROP.deleteProperty('BATCH_LAST_MASTER'); } catch (e) { /* best-effort */ }
+  }
+
+  lines.forEach(function(l) { Logger.log(l); });
+  ui.alert('Batch Resume Self-Test', lines.join('\n'), ui.ButtonSet.OK);
 }
 
 // Short single-line preview of an element's text for diagnostics

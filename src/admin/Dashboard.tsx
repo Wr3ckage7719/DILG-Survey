@@ -70,6 +70,12 @@ export default function Dashboard({ token, onLogout }: Props) {
   const [batchRunning, setBatchRunning] = useState(false);
   const [batchUrl, setBatchUrl] = useState<string | null>(null);
   const [batchPartialDocId, setBatchPartialDocId] = useState<string | null>(null);
+  // Where a timed-out chunk stopped, so "Retry timed out" can resume the SAME
+  // master document (skip already-merged rows) instead of starting a duplicate.
+  // batchResumeChunk: chunk index to re-run from; batchResumeMasterId: master
+  // doc at that point (null when the timeout hit before the first chunk).
+  const [batchResumeChunk, setBatchResumeChunk] = useState<number | null>(null);
+  const [batchResumeMasterId, setBatchResumeMasterId] = useState<string | null>(null);
   const [batchChunkIdx, setBatchChunkIdx] = useState(0);
   const batchCancelRef = useRef(false);
 
@@ -145,7 +151,17 @@ export default function Dashboard({ token, onLogout }: Props) {
    * Rows are sent in chunks (BATCH_CHUNK_SIZE) so no single request exceeds
    * the Vercel 60s ceiling; the master document id is threaded through each
    * chunk, and the last chunk exports the PDF and returns the document URL. */
-  const runBatch = async (items: BatchItem[]) => {
+  /** Runs the batch in chunks. startChunk / startMasterDocId / resume support
+   *  the timeout-retry path: a retry re-runs from the failed chunk, threading
+   *  the same master doc id so the server skips already-merged rows (resume=-
+   *  true also lets a chunk-1 retry rediscover an orphaned master the timeout
+   *  hid from the client). Fresh runs always start at chunk 0 with resume off. */
+  const runBatch = async (
+    items: BatchItem[],
+    startChunk = 0,
+    startMasterDocId: string | null = null,
+    resume = false,
+  ) => {
     const tick = (row: number, patch: Partial<BatchItem>) =>
       setBatchItems((prev) => (prev ? prev.map((it) => (it.row === row ? { ...it, ...patch } : it)) : prev));
 
@@ -154,28 +170,35 @@ export default function Dashboard({ token, onLogout }: Props) {
       chunkList.push(items.slice(i, i + BATCH_CHUNK_SIZE).map((it) => it.row));
     }
 
-    let masterDocId: string | null = null;
-    for (let c = 0; c < chunkList.length; c++) {
+    let masterDocId = startMasterDocId;
+    for (let c = startChunk; c < chunkList.length; c++) {
       if (batchCancelRef.current) break;
       const chunk = chunkList[c];
       chunk.forEach((row) => tick(row, { status: 'working' }));
       setBatchChunkIdx(c);
       const isFinal = c === chunkList.length - 1;
-      const result = await adminBatchPrintChunk(token, chunk, masterDocId, isFinal);
+      const result = await adminBatchPrintChunk(token, chunk, masterDocId, isFinal, undefined, resume);
       if (result.unauthorized) {
         setBatchRunning(false);
         onLogout();
         return;
       }
       if (!result.ok) {
-        // Without the docId the batch cannot continue — mark this chunk failed.
-        // A timeout is ambiguous: Google may have appended the rows anyway, so
-        // the master doc can't be resumed without risking duplicate entries.
+        // A timeout is ambiguous: Google may have appended the rows anyway.
+        // Remember exactly where we stopped so "Retry timed out" can resume the
+        // same master document (the server skips rows it already merged).
         const code = result.error || '';
         const ambiguous = code === 'upstream_timeout' || code.startsWith('Network error');
         chunk.forEach((row) =>
           tick(row, { status: ambiguous ? 'ambiguous' : 'error', error: describeAdminError(result) }),
         );
+        if (ambiguous) {
+          setBatchResumeChunk(c);
+          setBatchResumeMasterId(masterDocId);
+        } else {
+          setBatchResumeChunk(null);
+          setBatchResumeMasterId(null);
+        }
         // If an EARLIER chunk already created the master document, surface it:
         // the rows merged so far live in that doc, even though the final chunk
         // failed. Without this the admin sees no link at all — the dead-end the
@@ -184,6 +207,10 @@ export default function Dashboard({ token, onLogout }: Props) {
         if (masterDocId) setBatchPartialDocId(masterDocId);
         break;
       }
+      // This chunk made progress — clear the stale resume point (a successful
+      // retry consumes it; a later failure records its own).
+      setBatchResumeChunk(null);
+      setBatchResumeMasterId(null);
       if (result.docId) masterDocId = result.docId;
       chunk.forEach((row) => {
         if (result.failedRows && result.failedRows.includes(row)) {
@@ -216,6 +243,8 @@ export default function Dashboard({ token, onLogout }: Props) {
     setBatchUrl(null);
     setBatchPartialDocId(null);
     setBatchChunkIdx(0);
+    setBatchResumeChunk(null);
+    setBatchResumeMasterId(null);
     const items: BatchItem[] = selectedRowsInDisplay().map((r) => ({
       row: r.__row,
       label: rowRef(r) || `Row ${r.__row}`,
@@ -238,11 +267,25 @@ export default function Dashboard({ token, onLogout }: Props) {
     setBatchUrl(null);
     setBatchPartialDocId(null);
     setBatchChunkIdx(0);
+    setBatchResumeChunk(null);
+    setBatchResumeMasterId(null);
     setBatchItems((prev) =>
       prev ? prev.map((it) => (it.status === 'error' ? { ...it, status: 'pending', error: undefined } : it)) : prev,
     );
     setBatchRunning(true);
     await runBatch(failed.map((it) => ({ ...it, status: 'pending' as BatchStatus })));
+  };
+
+  /** Resume a timed-out batch from the failed chunk. Rows that already made it
+   *  into the master document are skipped server-side (per-row progress), so
+   *  re-running is safe — it continues the SAME document instead of creating a
+   *  duplicate. When the timeout hit the first chunk (no master id known), the
+   *  server rediscovers the orphaned master via its resume handoff. */
+  const retryTimedOut = async () => {
+    if (batchRunning || !batchItems || batchResumeChunk === null) return;
+    batchCancelRef.current = false;
+    setBatchRunning(true);
+    await runBatch(batchItems, batchResumeChunk, batchResumeMasterId, true);
   };
 
   const cancelBatch = () => {
@@ -253,6 +296,8 @@ export default function Dashboard({ token, onLogout }: Props) {
     setBatchItems(null);
     setBatchUrl(null);
     setBatchPartialDocId(null);
+    setBatchResumeChunk(null);
+    setBatchResumeMasterId(null);
     clearSelection();
   };
 
@@ -512,7 +557,8 @@ export default function Dashboard({ token, onLogout }: Props) {
                 <p className="mt-1 text-xs text-amber-700">
                   A chunk timed out before the final link was returned, but{' '}
                   {batchDone} of {batchTotal} response{batchTotal === 1 ? '' : 's'} are already in
-                  the document. Open it to check, then verify the Drive output folder.
+                  the document. Use “Retry timed out” to resume the same document — already-merged
+                  rows are skipped, so nothing is duplicated.
                 </p>
                 <a
                   href={`https://docs.google.com/document/d/${batchPartialDocId}/edit`}
@@ -535,6 +581,12 @@ export default function Dashboard({ token, onLogout }: Props) {
                 </Button>
               ) : (
                 <>
+                  {batchAmbiguous > 0 && (
+                    <Button variant="outline" size="sm" onClick={retryTimedOut}>
+                      <RefreshCw className="w-4 h-4" />
+                      Retry {batchAmbiguous} timed out
+                    </Button>
+                  )}
                   {batchFailed > 0 && (
                     <Button variant="outline" size="sm" onClick={retryFailed}>
                       <RefreshCw className="w-4 h-4" />

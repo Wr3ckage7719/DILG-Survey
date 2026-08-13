@@ -257,7 +257,8 @@ function doAdminPrint(body, e) {
         body.tpl || 'auto',
         String(body.masterDocId || ''),
         body.final === true,
-        getResponseSheet()
+        getResponseSheet(),
+        body.resume === true
       );
       return jsonOut(batch);
     } catch (err) {

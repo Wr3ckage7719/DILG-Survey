@@ -98,13 +98,17 @@ export async function adminPrintResponse(token: string, row: number, tpl = 'auto
 
 /** One chunk of a batch-document run. Send a few rows at a time; thread the
  *  returned docId into the next call, and set isFinal on the last chunk (it
- *  returns the finished document's URL). */
+ *  returns the finished document's URL). `resume` is the timeout-retry opt-in:
+ *  a retried chunk-1 call (no masterDocId yet) asks the server to reuse the
+ *  most recent in-progress batch document that already contains some of these
+ *  rows instead of starting a duplicate one. */
 export async function adminBatchPrintChunk(
   token: string,
   rows: number[],
   masterDocId: string | null,
   isFinal: boolean,
   tpl = 'auto',
+  resume = false,
 ): Promise<AdminBatchPrintResult> {
   const json = await post<AdminBatchPrintResult>('print', {
     token,
@@ -112,6 +116,7 @@ export async function adminBatchPrintChunk(
     masterDocId: masterDocId || undefined,
     final: isFinal,
     tpl,
+    resume,
   });
   if (!json) return { ok: false, error: 'Network error — check your connection and try again.' };
   return json;
