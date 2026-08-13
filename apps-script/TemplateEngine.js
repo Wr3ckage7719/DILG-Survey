@@ -15,7 +15,7 @@
 // If the "Diagnose Deployment" menu reports anything other than this,
 // the Apps Script project is running STALE code (files not re-pasted).
 // ──────────────────────────────────
-var MERGE_VERSION = 'v9.2-sqd-multiline';
+var MERGE_VERSION = 'v9.3-cc-na';
 
 // ──────────────────────────────────
 // Radio groups: field title → { option label → exact template key }
@@ -128,18 +128,50 @@ function textEquals(a, b) {
          String(b || '').replace(/[\u2018\u2019]/g, "'").toLowerCase().trim();
 }
 
-// Option map for a field: English labels first (for EN rows), Tagalog as fallback
+// Option map for a field: merges Tagalog AND English labels → the same keys.
+// Merging both means a document fills correctly no matter which language the
+// respondent used (the sheet stores the respondent's chosen-language labels).
 function optionMapFor(fieldTitle, isEnglish) {
   var merged = {};
-  var order = isEnglish ? [RADIO_KEYS_EN, RADIO_KEYS] : [RADIO_KEYS];
-  order.forEach(function(mapSet) {
-    var map = mapSet[fieldTitle];
+  [RADIO_KEYS[fieldTitle], RADIO_KEYS_EN[fieldTitle]].forEach(function(map) {
     if (!map) return;
     Object.keys(map).forEach(function(label) {
       if (!merged[label]) merged[label] = map[label];
     });
   });
   return merged;
+}
+
+// CC1 "not aware" answers (TL + EN) — by DILG rule CC2 and CC3 are then N/A.
+var CC1_NOT_AWARE = [
+  'Hindi ko alam kung ano ang Gabay, at hindi ako nakakita ng Gabay sa tanggapang ito. (Piliin ang N/A sa CC2 at CC3.)',
+  'I do not know what a CC is and I did not see one in this office. (Answer \u2018N/A\u2019 on CC2 and CC3)'
+];
+
+function isCc1NotAware(value) {
+  var v = String(value || '').trim();
+  if (!v) return false;
+  for (var i = 0; i < CC1_NOT_AWARE.length; i++) {
+    if (textEquals(v, CC1_NOT_AWARE[i])) return true;
+  }
+  return false;
+}
+
+// Sheet-header lookup for a field's stored value. Tries the field title's
+// first 30 chars (Tagalog sheet headers); for CC fields falls back to any
+// header starting with the same 'CCn.' prefix (English-form sheet headers).
+function getFieldValue(data, fieldTitle) {
+  var p = new RegExp('^' + fieldTitle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').substring(0, 30));
+  var v = getValueByPattern(data, p);
+  if (v !== null) return v;
+  var m = fieldTitle.match(/^(CC\d)/);
+  if (m) {
+    var keys = Object.keys(data);
+    for (var i = 0; i < keys.length; i++) {
+      if (keys[i].indexOf(m[1] + '.') === 0) return data[keys[i]];
+    }
+  }
+  return null;
 }
 
 // Map a stored rating label (TL or EN) → canonical grid key
@@ -485,21 +517,43 @@ function mergeResponseIntoDoc(doc, data, isEnglish) {
 
   // ── 2. Radio groups (checkbox-style fill) ──
   // Handles: ☐{{key}}, ☐ {{key}}, and plain {{key}}
+  // CC2/CC3 auto-N/A: DILG rule — when CC1 is "not aware" (option 4), CC2 and
+  // CC3 are N/A. The Google Form routes past those pages, so the sheet cells
+  // are often blank; the document must still show ☑ on the N/A line.
+  var cc1NotAware = false;
   var radioFieldTitles = Object.keys(RADIO_KEYS);
+  for (var rft = 0; rft < radioFieldTitles.length; rft++) {
+    if (radioFieldTitles[rft].indexOf('CC1') === 0) {
+      cc1NotAware = isCc1NotAware(getFieldValue(data, radioFieldTitles[rft]));
+      break;
+    }
+  }
   radioFieldTitles.forEach(function(fieldTitle) {
     var optionMap = optionMapFor(fieldTitle, isEnglish);
-    var selected = getValueByPattern(data, new RegExp(fieldTitle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').substring(0, 30)));
+    var selected = getFieldValue(data, fieldTitle);
 
-    var optionLabels = Object.keys(optionMap);
-    optionLabels.forEach(function(optionLabel) {
+    // One mark per key — compute ALL marks first so a later label for the same
+    // key (the other language) can't overwrite a correct ☑ with a wrong ☐.
+    var marks = {};
+    Object.keys(optionMap).forEach(function(optionLabel) {
       var key = optionMap[optionLabel];
-      var mark = textEquals(selected, optionLabel) ? '☑' : '☐';
-      // Glyph class covers ☐ □ ☑ ☒ ■ ✓ ✗ — converted DOCX templates may use
-      // a different box glyph than ☐. The pure Tagalog template has NO glyphs,
-      // so patterns 1-2 are no-ops there and pattern 3 does all the work.
-      // NOTE: GAS replaceText uses RE2 — no \uXXXX escapes allowed, hence
-      // the literal characters below.
-      var glyph = '[☐□☑☒■✓✗]';
+      var mark;
+      if ((key === 'cc2_na' || key === 'cc3_na') && !selected && cc1NotAware) {
+        mark = '☑';
+      } else {
+        mark = textEquals(selected, optionLabel) ? '☑' : '☐';
+      }
+      if (!marks[key] || mark === '☑') marks[key] = mark;
+    });
+
+    // Glyph class covers ☐ □ ☑ ☒ ■ ✓ ✗ — converted DOCX templates may use
+    // a different box glyph than ☐. The pure Tagalog template has NO glyphs,
+    // so patterns 1-2 are no-ops there and pattern 3 does all the work.
+    // NOTE: GAS replaceText uses RE2 — no \uXXXX escapes allowed, hence
+    // the literal characters below.
+    var glyph = '[☐□☑☒■✓✗]';
+    Object.keys(marks).forEach(function(key) {
+      var mark = marks[key];
       // 1. glyph + {{key}} + glyph (duplicate checkbox after placeholder)
       body.replaceText(glyph + '[ \\t]*' + ciPattern(key) + '[ \\t]*' + glyph, mark);
       // 2. glyph + {{key}} or glyph {{key}} — standard case
