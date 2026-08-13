@@ -34,6 +34,7 @@ function onOpen() {
     .addItem('Verify Template', 'verifyTemplate')
     .addItem('Verify English Template', 'verifyEnglishTemplate')
     .addItem('Fix Template Layout', 'repairTemplate')
+    .addItem('Compact SQD Grid', 'compactSqdGrids')
     .addSeparator()
     .addItem('Diagnose Deployment', 'checkDeployment')
     .addItem('Diagnose Batch Append', 'diagnoseBatchAppend')

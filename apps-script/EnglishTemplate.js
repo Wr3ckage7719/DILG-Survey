@@ -370,6 +370,7 @@ function injectSqdTable(body, report) {
     var headerCols = findRatingHeader(tables[t]);
     if (!headerCols) continue;
     var filled = injectSqdRows(tables[t], headerCols, report);
+    compactSqdColumns(tables[t], headerCols);
     if (filled > bestFilled) { bestFilled = filled; bestTable = tables[t]; }
   }
   if (bestFilled >= 54) return; // full grid: 9 rows × 6 rating columns
@@ -380,6 +381,7 @@ function injectSqdTable(body, report) {
     var p2 = {};
     for (var k = 1; k <= 6; k++) p2[k] = TL_RATING_KEYS[k - 1];
     var f2 = injectSqdRows(bestTable, p2, report);
+    compactSqdColumns(bestTable, p2);
     if (f2 > bestFilled) return;
   }
 
@@ -390,6 +392,7 @@ function injectSqdTable(body, report) {
     var fallback = {};
     for (var k2 = 1; k2 <= 6; k2++) fallback[k2] = TL_RATING_KEYS[k2 - 1];
     var f3 = injectSqdRows(tbl, fallback, report);
+    compactSqdColumns(tbl, fallback);
     if (f3 >= 9) return;
   }
 
@@ -483,10 +486,9 @@ function injectSqdRows(table, headerCols, report) {
       if (col >= ncells) continue;
       var cell = row.getCell(col);
       if (cell.getText().indexOf('{{') !== -1) continue;
-      var leftover = cell.getText().replace(/[\u2610\u25A1]/g, '').trim();
-      cell.setText(leftover
-        ? leftover + ' {{sqd' + num + '_' + headerCols[ck] + '}}'
-        : '{{sqd' + num + '_' + headerCols[ck] + '}}');
+      // Compact grid: each rating cell holds a single ☐ glyph (~1 char); the
+      // merge fills the grid positionally from the header row.
+      cell.setText(SQD_CHECK_GLYPH);
       filled++;
     }
     lastLabelText = labelText;
@@ -569,6 +571,7 @@ function verifyEnglishTemplate() {
     } else {
       results.push('\u2717 Kulang (' + missing.length + '/' + expected.length + '): ' + missing.join(', '));
     }
+    results.push('SQD grid: ' + sqdGridStateLine(doc.getBody()));
     doc.saveAndClose();
   } catch (e) {
     results.push('\u2717 Error: ' + e.message);

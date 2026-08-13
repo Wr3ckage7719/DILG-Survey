@@ -254,16 +254,18 @@ function generateTemplateDoc() {
     row.appendTableCell(sqdLabels[r]).setAttributes(style.normal);
 
     for (var c = 0; c < colKeys.length; c++) {
-      var cell = row.appendTableCell('{{sqd' + r + '_' + colKeys[c] + '}}');
+      // Compact grid: a single ☐ glyph per cell (~1 char). The merge fills
+      // the grid positionally from the header row — no {{sqdN_key}} tokens.
+      var cell = row.appendTableCell(SQD_CHECK_GLYPH);
       cell.setAttributes(style.normal);
     }
   }
 
-  // Set column widths for SQD table
+  // Set column widths for SQD table (label 220pt, rating columns ~1 char)
   var sqdCols = sqdTable.getRow(0).getNumChildren();
   sqdTable.getRow(0).getCell(0).setWidth(220);
   for (var c2 = 1; c2 < sqdCols; c2++) {
-    sqdTable.getRow(0).getCell(c2).setWidth(55);
+    sqdTable.getRow(0).getCell(c2).setWidth(SQD_CHECK_COL_WIDTH);
   }
 
   addEmpty();

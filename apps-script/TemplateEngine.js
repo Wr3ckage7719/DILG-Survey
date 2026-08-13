@@ -15,7 +15,7 @@
 // If the "Diagnose Deployment" menu reports anything other than this,
 // the Apps Script project is running STALE code (files not re-pasted).
 // ──────────────────────────────────
-var MERGE_VERSION = 'v8-spacing-stable';
+var MERGE_VERSION = 'v9-compact-sqd';
 
 // ──────────────────────────────────
 // Radio groups: field title → { option label → exact template key }
@@ -180,12 +180,9 @@ function expectedTemplateKeys() {
   ['cc2_na', 'cc3_na'].forEach(function(k) {
     if (keys.indexOf(k) === -1) keys.push(k);
   });
-  for (var r = 0; r < SQD_ROWS; r++) {
-    for (var c = 0; c < SQD_COLUMNS.length; c++) {
-      var k2 = sqdCellKey(r, SQD_COLUMNS[c]);
-      if (keys.indexOf(k2) === -1) keys.push(k2);
-    }
-  }
+  // NOTE: SQD grid cells are NOT placeholder keys anymore — the compact grid
+  // holds a single '☐' glyph per rating cell and is filled positionally at
+  // merge time. Grid presence is verified separately (sqdGridStateLine).
   ['pangalanNgTanggapan', 'serbisyongIbinigay', 'petsa', 'rehiyon', 'mgaMungkahi', 'pangalan', 'contactNumber', 'emailAddress'].forEach(function(k) {
     if (keys.indexOf(k) === -1) keys.push(k);
   });
@@ -298,6 +295,166 @@ function sqdCellKey(rowIndex, colLabel) {
     .toLowerCase();
 
   return 'sqd' + rowIndex + '_' + colSuffix;
+}
+
+// ──────────────────────────────────
+// Compact SQD grid: each rating cell holds a single '☐' glyph and the rating
+// columns are ~1 character wide, so the placeholder occupies ~1 char instead
+// of a multi-line {{sqdN_key}} token. At merge time the grid is filled
+// positionally from its own header row (TL or EN labels).
+// ──────────────────────────────────
+
+var SQD_CHECK_COL_WIDTH = 22;  // rating column width in points (~1 glyph)
+var SQD_CHECK_GLYPH = '☐';     // placeholder glyph shown in the template
+
+// Map a SQD header cell to its canonical rating key. Tolerant of leading
+// checkbox glyphs, numbers and codes ("☐ Strongly agree", "5. Sang-ayon")
+// and of N/A variants ("N/A", "N.A.", "Not applicable"). Returns null when
+// the cell is not a rating header.
+function sqdHeaderKeyOf(cellText) {
+  var cleaned = String(cellText || '').replace(/^[\s\u2610\u25A1\u2611\u2B1B\d.:\-()]+/, '').toLowerCase();
+  var isNA = /^(n\s*\/\s*a|n\.a\.|not\s*applicable)(?=$|[\s(.:*;,-])/.test(cleaned);
+  var labels = Object.keys(RATING_KEYS);
+  for (var i = 0; i < labels.length; i++) {
+    var lbl = labels[i].toLowerCase();
+    if (lbl === 'n/a') {
+      if (isNA) return RATING_KEYS[labels[i]];
+    } else if (cleaned.indexOf(lbl) === 0) {
+      return RATING_KEYS[labels[i]];
+    }
+  }
+  return null;
+}
+
+// Column index → rating key map from the SQD grid's header row. Scans every
+// row (the header is not necessarily row 0) and returns the first row where
+// >= 4 columns map to rating labels; null when none maps cleanly.
+function sqdGridHeaderKeys(table) {
+  for (var r = 0; r < table.getNumRows(); r++) {
+    var row = table.getRow(r);
+    var cols = {};
+    for (var c = 0; c < row.getNumCells(); c++) {
+      var ct = row.getCell(c).getText();
+      if (!ct || ct.length > 40) continue;
+      var key = sqdHeaderKeyOf(ct);
+      if (key) cols[c] = key;
+    }
+    if (Object.keys(cols).length >= 4) return cols;
+  }
+  return null;
+}
+
+// The rating column whose key equals selectedKey, or -1.
+function sqdSelectedColumn(headerKeys, selectedKey) {
+  var keys = Object.keys(headerKeys || {});
+  for (var i = 0; i < keys.length; i++) {
+    if (headerKeys[keys[i]] === selectedKey) return parseInt(keys[i], 10);
+  }
+  return -1;
+}
+
+// Narrow the SQD grid's rating columns to ~1 char. Only columns present in
+// headerKeys are touched; the label column is left as-is. Best-effort.
+function compactSqdColumns(table, headerKeys) {
+  var cols = Object.keys(headerKeys || {});
+  for (var i = 0; i < cols.length; i++) {
+    var c = parseInt(cols[i], 10);
+    if (c < 1) continue;
+    try {
+      table.getRow(0).getCell(c).setWidth(SQD_CHECK_COL_WIDTH);
+    } catch (e) { /* best-effort: DOCX layouts may reject per-cell widths */ }
+  }
+}
+
+// One-line SQD grid state for diagnostics (checkDeployment).
+function sqdGridStateLine(body) {
+  try {
+    var tables = body.getTables().filter(function(t) { return /SQD\d/i.test(tableText(t)); });
+    if (tables.length === 0) return 'MISSING (no SQD table found)';
+    var compact = 0, keyed = 0, total = 0;
+    tables.forEach(function(t) {
+      for (var r = 0; r < t.getNumRows(); r++) {
+        var row = t.getRow(r);
+        for (var c = 1; c < row.getNumCells(); c++) {
+          var txt = row.getCell(c).getText();
+          if (/\{\{sqd\d+_[a-z0-9_]+\}\}/i.test(txt)) { keyed++; total++; }
+          else if (txt === SQD_CHECK_GLYPH) { compact++; total++; }
+        }
+      }
+    });
+    return tables.length + ' table(s), ' + total + ' rating cells (' + compact + ' ☐ compact / ' + keyed + ' keyed)';
+  } catch (e) {
+    return 'read ERROR: ' + e.message;
+  }
+}
+
+// Rebuild the SQD grid of BOTH configured templates (TL + EN) to the compact
+// form: a single ☐ per rating cell, {{sqdN_key}} tokens removed, rating
+// columns narrowed. Idempotent — run once after upgrading to the compact grid.
+// Menu: DILG Survey > Advanced > Compact SQD Grid
+function compactSqdGrids() {
+  var ui = SpreadsheetApp.getUi();
+  var ids = [
+    { label: 'TL', id: SCRIPT_PROP.getProperty('TEMPLATE_DOC_ID') },
+    { label: 'EN', id: SCRIPT_PROP.getProperty('TEMPLATE_DOC_ID_EN') }
+  ];
+  var lines = [];
+
+  for (var i = 0; i < ids.length; i++) {
+    var entry = ids[i];
+    if (!entry.id) {
+      lines.push(entry.label + ': template not set — skipped');
+      continue;
+    }
+    try {
+      var doc = DocumentApp.openById(entry.id);
+      var body = doc.getBody();
+      var tables = body.getTables();
+      var grids = 0;
+      var cells = 0;
+
+      for (var t = 0; t < tables.length; t++) {
+        var table = tables[t];
+        if (!/SQD\d/i.test(tableText(table))) continue;
+        var headerKeys = sqdGridHeaderKeys(table);
+        if (!headerKeys) continue;
+        grids++;
+
+        var numRows = table.getNumRows();
+        for (var r = 0; r < numRows; r++) {
+          var row = table.getRow(r);
+          var nc = row.getNumCells();
+          var isHeader = false;
+          for (var h = 0; h < nc; h++) {
+            if (sqdHeaderKeyOf(row.getCell(h).getText())) { isHeader = true; break; }
+          }
+          if (isHeader) continue;
+
+          for (var c = 1; c < nc; c++) {
+            if (headerKeys[c] === undefined) continue;
+            var cell = row.getCell(c);
+            var cellText = cell.getText();
+            if (cellText !== SQD_CHECK_GLYPH) {
+              cell.setText(SQD_CHECK_GLYPH);
+              cells++;
+            }
+          }
+        }
+        compactSqdColumns(table, headerKeys);
+      }
+
+      doc.saveAndClose();
+      if (grids === 0) {
+        lines.push(entry.label + ': no SQD grid found (needs rating-label header row)');
+      } else {
+        lines.push(entry.label + ': ' + grids + ' SQD grid(s) compacted — ' + cells + ' cells → ' + SQD_CHECK_GLYPH + ', rating columns ' + SQD_CHECK_COL_WIDTH + 'pt');
+      }
+    } catch (e) {
+      lines.push(entry.label + ': ERROR ' + e.message);
+    }
+  }
+
+  ui.alert('Compact SQD Grid', lines.join('\n'), ui.ButtonSet.OK);
 }
 
 // ──────────────────────────────────
@@ -474,6 +631,54 @@ function fillSqdTable(body, data) {
           var isSelected = m[2].toLowerCase() === selectedKeys[rowNum];
           cell.setText(isSelected ? '✓' : '');
         }
+      }
+    }
+  }
+
+  // ── Compact-grid path: the header row declares the rating order, so each
+  // SQD row's selected column can be filled without any placeholder text —
+  // write '✓' into the selected rating column and '' into the others. Only
+  // tables whose header maps cleanly (>= 4 columns) are touched; old keyed
+  // tables were already handled by the scan above.
+  for (var t2 = 0; t2 < tables.length; t2++) {
+    var sqdTable = tables[t2];
+    if (!/SQD\d/i.test(tableText(sqdTable))) continue;
+    var headerKeys = sqdGridHeaderKeys(sqdTable);
+    if (!headerKeys) continue;
+
+    var lastNum = null;
+    var numRows2 = sqdTable.getNumRows();
+    for (var r4 = 0; r4 < numRows2; r4++) {
+      var row4 = sqdTable.getRow(r4);
+      var nc4 = row4.getNumCells();
+
+      // Skip header/title rows (any cell maps to a rating header).
+      var isHeaderRow = false;
+      for (var c4 = 0; c4 < nc4; c4++) {
+        if (sqdHeaderKeyOf(row4.getCell(c4).getText())) { isHeaderRow = true; break; }
+      }
+      if (isHeaderRow) continue;
+
+      var labelCellText = nc4 > 0 ? row4.getCell(0).getText() : '';
+      var mNum = labelCellText.match(/^SQD(\d+)\./i);
+      var rowIdx;
+      if (mNum) {
+        rowIdx = parseInt(mNum[1], 10);
+        lastNum = rowIdx;
+      } else if (lastNum !== null) {
+        lastNum += 1; // vertically merged label cell spans multiple rows
+        rowIdx = lastNum;
+      } else {
+        continue;
+      }
+      if (rowIdx < 0 || rowIdx >= SQD_ROWS) continue;
+
+      var selected = selectedKeys[rowIdx];
+      var selCol = sqdSelectedColumn(headerKeys, selected);
+      for (var c5 = 1; c5 < nc4; c5++) {
+        var colKey = headerKeys[c5];
+        if (colKey === undefined) continue;
+        row4.getCell(c5).setText(c5 === selCol ? '✓' : '');
       }
     }
   }
@@ -1657,6 +1862,7 @@ function verifyTemplate() {
     } else {
       results.push('✗ Kulang (' + missing.length + '/' + expected.length + '): ' + missing.join(', '));
     }
+    results.push('SQD grid: ' + sqdGridStateLine(doc.getBody()));
     doc.saveAndClose();
   } catch (e) {
     results.push('⚠ Could not read document content: ' + e.message);
@@ -1716,7 +1922,8 @@ function checkDeployment() {
       lines.push('EN placeholders: ' + Object.keys(uniq).length + ' unique / ' + enText.split('{{').length + ' total');
       var expected = expectedTemplateKeys();
       var missing = expected.filter(function(k) { return enText.indexOf('{{' + k + '}}') === -1; });
-      lines.push('EN missing keys: ' + (missing.length === 0 ? 'NONE (all 89 present)' : missing.join(', ')));
+      lines.push('EN missing keys: ' + (missing.length === 0 ? 'NONE (all ' + expected.length + ' present)' : missing.join(', ')));
+      lines.push('EN SQD grid: ' + sqdGridStateLine(enDoc.getBody()));
       // Radio format sniff: how many literal checkbox glyphs sit right before a {{key}}
       var glyphBefore = (enText.match(/[☐□☑☒■✓✗][ \t]*\{\{/g) || []).length;
       var purePlaceholders = (enText.match(/[^☐□☑☒■✓✗][ \t]*\{\{/g) || []).length;
@@ -1737,6 +1944,7 @@ function checkDeployment() {
       var tlDoc = DocumentApp.openById(tlId);
       var tlText = tlDoc.getBody().getText();
       lines.push('TL placeholders: ' + tlText.split('{{').length + ' total');
+      lines.push('TL SQD grid: ' + sqdGridStateLine(tlDoc.getBody()));
     } catch (e) {
       lines.push('TL doc ERROR: ' + e.message);
     }
@@ -1819,7 +2027,7 @@ function testMergeRow(rowIndex) {
       lines.push('Total ☐ boxes: ' + boxes);
       lines.push('Leftover {{...}}: ' + (leftovers.length === 0 ? 'NONE' : leftovers.join(' ')));
       if (sqdCount < 9) {
-        lines.push('({{sqd...}} leftovers are EXPECTED when a row has unanswered SQD rows)');
+        lines.push('(leftover ☐ boxes are EXPECTED when a row has unanswered SQD rows)');
       }
     } catch (e) {
       lines.push('MERGE ERROR: ' + e.message);
