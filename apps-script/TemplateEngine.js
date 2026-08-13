@@ -15,7 +15,7 @@
 // If the "Diagnose Deployment" menu reports anything other than this,
 // the Apps Script project is running STALE code (files not re-pasted).
 // ──────────────────────────────────
-var MERGE_VERSION = 'v9-compact-sqd';
+var MERGE_VERSION = 'v9.1-sqd-width-orig';
 
 // ──────────────────────────────────
 // Radio groups: field title → { option label → exact template key }
@@ -298,13 +298,14 @@ function sqdCellKey(rowIndex, colLabel) {
 }
 
 // ──────────────────────────────────
-// Compact SQD grid: each rating cell holds a single '☐' glyph and the rating
-// columns are ~1 character wide, so the placeholder occupies ~1 char instead
-// of a multi-line {{sqdN_key}} token. At merge time the grid is filled
+// Compact SQD grid: each rating cell holds a single '☐' glyph so the grid
+// compresses VERTICALLY (~1 line per row instead of a wrapped multi-line
+// {{sqdN_key}} token). Column widths stay at their original 55pt — the
+// compression is vertical only. At merge time the grid is filled
 // positionally from its own header row (TL or EN labels).
 // ──────────────────────────────────
 
-var SQD_CHECK_COL_WIDTH = 22;  // rating column width in points (~1 glyph)
+var SQD_CHECK_COL_WIDTH = 55;  // original rating column width in points
 var SQD_CHECK_GLYPH = '☐';     // placeholder glyph shown in the template
 
 // Map a SQD header cell to its canonical rating key. Tolerant of leading
@@ -353,8 +354,9 @@ function sqdSelectedColumn(headerKeys, selectedKey) {
   return -1;
 }
 
-// Narrow the SQD grid's rating columns to ~1 char. Only columns present in
-// headerKeys are touched; the label column is left as-is. Best-effort.
+// Restore the SQD grid's rating columns to the original width. Only columns
+// present in headerKeys are touched; the label column is left as-is.
+// Best-effort.
 function compactSqdColumns(table, headerKeys) {
   var cols = Object.keys(headerKeys || {});
   for (var i = 0; i < cols.length; i++) {
@@ -388,9 +390,10 @@ function sqdGridStateLine(body) {
   }
 }
 
-// Rebuild the SQD grid of BOTH configured templates (TL + EN) to the compact
-// form: a single ☐ per rating cell, {{sqdN_key}} tokens removed, rating
-// columns narrowed. Idempotent — run once after upgrading to the compact grid.
+// Rebuild the SQD grid of BOTH configured templates (TL + EN): a single ☐
+// per rating cell (vertical compression), {{sqdN_key}} tokens removed, and
+// rating columns restored to the original width. Idempotent — run once after
+// upgrading to the compact grid.
 // Menu: DILG Survey > Advanced > Compact SQD Grid
 function compactSqdGrids() {
   var ui = SpreadsheetApp.getUi();

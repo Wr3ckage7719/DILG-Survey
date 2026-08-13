@@ -357,7 +357,8 @@ function injectSimpleFields(body, report) {
 }
 
 // ──────────────────────────────────
-// SQD grid: inject {{sqdN_key}} into each rating column cell
+// SQD grid: inject the compact '☐' glyph into each rating column cell
+// (vertical compression — the merge fills the grid positionally).
 // ──────────────────────────────────
 
 function injectSqdTable(body, report) {
@@ -370,7 +371,6 @@ function injectSqdTable(body, report) {
     var headerCols = findRatingHeader(tables[t]);
     if (!headerCols) continue;
     var filled = injectSqdRows(tables[t], headerCols, report);
-    compactSqdColumns(tables[t], headerCols);
     if (filled > bestFilled) { bestFilled = filled; bestTable = tables[t]; }
   }
   if (bestFilled >= 54) return; // full grid: 9 rows × 6 rating columns
@@ -381,7 +381,6 @@ function injectSqdTable(body, report) {
     var p2 = {};
     for (var k = 1; k <= 6; k++) p2[k] = TL_RATING_KEYS[k - 1];
     var f2 = injectSqdRows(bestTable, p2, report);
-    compactSqdColumns(bestTable, p2);
     if (f2 > bestFilled) return;
   }
 
@@ -392,7 +391,6 @@ function injectSqdTable(body, report) {
     var fallback = {};
     for (var k2 = 1; k2 <= 6; k2++) fallback[k2] = TL_RATING_KEYS[k2 - 1];
     var f3 = injectSqdRows(tbl, fallback, report);
-    compactSqdColumns(tbl, fallback);
     if (f3 >= 9) return;
   }
 

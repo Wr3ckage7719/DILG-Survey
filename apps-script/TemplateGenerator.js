@@ -261,7 +261,7 @@ function generateTemplateDoc() {
     }
   }
 
-  // Set column widths for SQD table (label 220pt, rating columns ~1 char)
+  // Set column widths for SQD table (label 220pt, rating columns original 55pt)
   var sqdCols = sqdTable.getRow(0).getNumChildren();
   sqdTable.getRow(0).getCell(0).setWidth(220);
   for (var c2 = 1; c2 < sqdCols; c2++) {
