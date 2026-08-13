@@ -15,7 +15,7 @@
 // If the "Diagnose Deployment" menu reports anything other than this,
 // the Apps Script project is running STALE code (files not re-pasted).
 // ──────────────────────────────────
-var MERGE_VERSION = 'v9.1-sqd-width-orig';
+var MERGE_VERSION = 'v9.2-sqd-multiline';
 
 // ──────────────────────────────────
 // Radio groups: field title → { option label → exact template key }
