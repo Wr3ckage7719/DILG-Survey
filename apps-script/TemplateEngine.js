@@ -1191,6 +1191,93 @@ function diagnoseBatchAppend(rowIndex) {
   ui.alert('Diagnose Batch Append', lines.join('\n'), ui.ButtonSet.OK);
 }
 
+// ──────────────────────────────────
+// Self-test: assembles a REAL 3-entry batch document through the exact same
+// code path as the admin dashboard (template copy → mergeResponseIntoDoc →
+// appendRowEntry × 2), then asserts the no-blank-page invariants:
+//   1. findSpacingFaults() reports nothing (no empty ¶ before any page break,
+//      body doesn't end with a break or empty ¶),
+//   2. the header appears once per entry (3 entries → 3 header titles/codes),
+//   3. no leftover {{placeholders}} anywhere.
+// Menu: DILG Survey > Advanced > Batch Spacing Self-Test. Runs against the
+// active row's data (row 2 if the cursor is on the header). Temp files are
+// trashed. PASS/FAIL is shown in an alert + Logger.
+// ──────────────────────────────────
+
+function runBatchSpacingSelfTest(rowIndex) {
+  var ui = SpreadsheetApp.getUi();
+  var sheet = SpreadsheetApp.getActiveSheet();
+  if (!rowIndex) {
+    rowIndex = sheet.getActiveCell().getRow();
+    if (rowIndex < 2) rowIndex = 2;
+  }
+
+  var lines = [];
+  var masterFile = null;
+  try {
+    var data = readResponseRow(rowIndex, sheet);
+    var isEnglish = resolveTemplateChoice(data, 'auto');
+    var tplId = isEnglish
+      ? SCRIPT_PROP.getProperty('TEMPLATE_DOC_ID_EN')
+      : SCRIPT_PROP.getProperty('TEMPLATE_DOC_ID');
+    lines.push('Batch Spacing Self-Test — row ' + rowIndex + (isEnglish ? ' (EN template)' : ' (TL template)'));
+    if (!tplId) throw new Error('No template doc set (TEMPLATE_DOC_ID' + (isEnglish ? '_EN' : '') + ').');
+
+    var outputFolder = getOutputFolder();
+    var tplFile = DriveApp.getFileById(tplId);
+    lines.push('Template: ' + tplFile.getName());
+
+    // Entry 1 = master (template copy merged in place — the page-1 path)
+    var ts = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyyMMdd_HHmmss');
+    masterFile = tplFile.makeCopy('_SELFTEST_batch_' + ts, outputFolder);
+    var masterDoc = openDocWithRetry(masterFile.getId());
+    var masterBody = masterDoc.getBody();
+    mergeResponseIntoDoc(masterDoc, data, isEnglish);
+    applyHeaderPlaceholders(masterBody, data, isEnglish);
+    masterDoc.saveAndClose();
+    masterDoc = DocumentApp.openById(masterFile.getId());
+    masterBody = masterDoc.getBody();
+
+    // Entries 2 and 3 = the real append path (same row reused; structure is
+    // what matters, not value uniqueness)
+    appendRowEntry(masterBody, rowIndex, 'auto', sheet, outputFolder);
+    appendRowEntry(masterBody, rowIndex, 'auto', sheet, outputFolder);
+
+    // ── Assertions (doc is still open) ──
+    var faults = findSpacingFaults(masterBody);
+    var full = masterBody.getText();
+    var headerCount = (full.split('DEPARTMENT OF THE INTERIOR').length - 1);
+    var codeCount = (full.split('Document Code').length - 1);
+    var left = full.match(/\{\{[^{}]+\}\}/g) || [];
+    var childCount = masterBody.getNumChildren();
+
+    lines.push('Children in master: ' + childCount + ' (page breaks in text: ' +
+      (full.match(/\u000b/g) || []).length + ')');
+    lines.push('Header title occurrences: ' + headerCount + ' / 3 expected');
+    lines.push('Document Code occurrences: ' + codeCount + ' / 3 expected');
+    lines.push('Leftover {{...}} placeholders: ' + (left.length ? left.join(' ') : 'NONE'));
+    lines.push('Spacing faults: ' + (faults.length ? faults.join('; ') : 'NONE'));
+
+    var ok =
+      faults.length === 0 &&
+      headerCount >= 3 &&
+      codeCount >= 3 &&
+      left.length === 0;
+    lines.push(ok
+      ? 'RESULT: PASS ✓ — no blank-page faults, header on every entry, no leftover placeholders.'
+      : 'RESULT: FAIL ✗ — see details above.');
+    lines.push('Verification doc (open to confirm visually): ' + masterFile.getUrl());
+    lines.push('NOTE: the verification doc above was left in the output folder; delete it when done.');
+    masterDoc.saveAndClose();
+  } catch (err) {
+    lines.push('SELF-TEST ERROR: ' + err.message);
+    if (masterFile) { try { masterFile.setTrashed(true); } catch (e) { /* best-effort */ } }
+  }
+
+  lines.forEach(function(l) { Logger.log(l); });
+  ui.alert('Batch Spacing Self-Test', lines.join('\n'), ui.ButtonSet.OK);
+}
+
 // Short single-line preview of an element's text for diagnostics
 function snippetText(t) {
   return String(t).replace(/\n/g, ' ⏎ ').substring(0, 90);

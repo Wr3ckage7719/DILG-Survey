@@ -37,6 +37,7 @@ function onOpen() {
     .addSeparator()
     .addItem('Diagnose Deployment', 'checkDeployment')
     .addItem('Diagnose Batch Append', 'diagnoseBatchAppend')
+    .addItem('Batch Spacing Self-Test', 'runBatchSpacingSelfTest')
     .addItem('Test Merge (English) — Selected Row', 'testMergeRow')
     .addSeparator()
     .addItem('Remove Duplicate Reference Numbers', 'cleanupDuplicateRefs')
