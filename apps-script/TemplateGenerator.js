@@ -146,29 +146,29 @@ function generateTemplateDoc() {
 
   // === DEMOGRAPHICS ===
   addPara('Uri ng Kliyente:', style.section);
-  addRadioLine('uri_mamamayan', 'Mamamayan');
-  addRadioLine('uri_negosyo', 'Negosyo');
-  addRadioLine('uri_gobyerno_empleyado_o_mula_sa_ibang_ahensiya', 'Gobyerno (empleyado o mula sa ibang ahensiya)');
+  addRadioLine('uri0', 'Mamamayan');
+  addRadioLine('uri1', 'Negosyo');
+  addRadioLine('uri2', 'Gobyerno (empleyado o mula sa ibang ahensiya)');
   addEmpty();
 
   addPara('Petsa: {{petsa}}', style.section);
   addEmpty();
 
   addPara('Edad:', style.section);
-  addRadioLine('edad_mas_mababa_sa_18_yo', 'Mas mababa sa 18 y/o');
-  addRadioLine('edad_18_24_yo', '18-24 y/o');
-  addRadioLine('edad_25_34_yo', '25-34 y/o');
-  addRadioLine('edad_35_44_yo', '35-44 y/o');
-  addRadioLine('edad_45_54_yo', '45-54 y/o');
-  addRadioLine('edad_55_64_yo', '55-64 y/o');
-  addRadioLine('edad_65_yo_pataas', '65 y/o pataas');
+  addRadioLine('edad0', 'Mas mababa sa 18 y/o');
+  addRadioLine('edad1', '18-24 y/o');
+  addRadioLine('edad2', '25-34 y/o');
+  addRadioLine('edad3', '35-44 y/o');
+  addRadioLine('edad4', '45-54 y/o');
+  addRadioLine('edad5', '55-64 y/o');
+  addRadioLine('edad6', '65 y/o pataas');
   addEmpty();
 
   addPara('Kasarian:', style.section);
-  addRadioLine('kasarian_lalaki', 'Lalaki');
-  addRadioLine('kasarian_babae', 'Babae');
-  addRadioLine('kasarian_lgbtqia', 'LGBTQIA+');
-  addRadioLine('kasarian_hindi_nais_sabihin', 'Hindi nais sabihin');
+  addRadioLine('kas0', 'Lalaki');
+  addRadioLine('kas1', 'Babae');
+  addRadioLine('kas2', 'LGBTQIA+');
+  addRadioLine('kas3', 'Hindi nais sabihin');
   addEmpty();
 
   addPara('Rehiyon ng tirahan: {{rehiyon}}', style.section);
@@ -185,29 +185,29 @@ function generateTemplateDoc() {
   addEmpty();
 
   addPara('CC1. Alin sa mga sumusunod ang naglalarawan ng iyong kaalaman sa CC/Gabay?', style.section);
-  addRadioLine('cc1_alam_ko_kung_ano_ang_gabay_at_nakita_ko_ang_gabay_ng_tang',
+  addRadioLine('cc1_0',
     'Alam ko kung ano ang Gabay, at nakita ko ang Gabay ng tanggapang ito.');
-  addRadioLine('cc1_alam_ko_kung_ano_ang_gabay_ngunit_hindi_ko_nakita_ang_gab',
+  addRadioLine('cc1_1',
     'Alam ko kung ano ang Gabay, ngunit hindi ko nakita ang Gabay ng tanggapang ito.');
-  addRadioLine('cc1_nalaman_ko_kung_ano_ang_gabay_noong_nakita_ko_ang_gabay_ng',
+  addRadioLine('cc1_2',
     'Nalaman ko kung ano ang Gabay noong nakita ko ang Gabay ng tanggapang ito.');
-  addRadioLine('cc1_hindi_ko_alam_kung_ano_ang_gabay_at_hindi_ako_nakakakita_ng',
+  addRadioLine('cc1_3',
     'Hindi ko alam kung ano ang Gabay, at hindi ako nakakita ng Gabay sa tanggapang ito. (Piliin ang N/A)');
   addEmpty();
 
   addPara('CC2. Kung alam ang Gabay, masasabi mo ba na ang Gabay ng tanggapang ito ay:', style.section);
-  addRadioLine('cc2_madaling_makita', 'Madaling makita');
-  addRadioLine('cc2_bahagyang_nakikita', 'Bahagyang nakikita');
-  addRadioLine('cc2_mahirap_makita', 'Mahirap makita');
-  addRadioLine('cc2_hindi_makita', 'Hindi makita');
-  addRadioLine('cc2_na', 'N/A');
+  addRadioLine('cc2_0', 'Madaling makita');
+  addRadioLine('cc2_1', 'Bahagyang nakikita');
+  addRadioLine('cc2_2', 'Mahirap makita');
+  addRadioLine('cc2_3', 'Hindi makita');
+  addRadioLine('cc2_4', 'N/A');
   addEmpty();
 
   addPara('CC3. Kung alam ang Gabay, gaano nakatulong ang Gabay sa iyong transaksiyon?', style.section);
-  addRadioLine('cc3_lubos_na_nakatulong', 'Lubos na nakatulong');
-  addRadioLine('cc3_bahagyang_nakatulong', 'Bahagyang nakatulong');
-  addRadioLine('cc3_hindi_nakatulong', 'Hindi nakatulong');
-  addRadioLine('cc3_na', 'N/A');
+  addRadioLine('cc3_0', 'Lubos na nakatulong');
+  addRadioLine('cc3_1', 'Bahagyang nakatulong');
+  addRadioLine('cc3_2', 'Hindi nakatulong');
+  addRadioLine('cc3_3', 'N/A');
   addEmpty();
   addEmpty();
 

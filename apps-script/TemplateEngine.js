@@ -3,11 +3,12 @@
  * Merges form response data into Google Doc template → exports PDF.
  *
  * Template placeholders use {{fieldName}} syntax.
- * Radio/checkbox groups use individual markers per option:
- *   ☐ {{uri_mamamayan}} Mamamayan
+ * Radio/checkbox groups use individual markers per option (short keys,
+ * v9.4 — legacy long keys still fill via LEGACY_RADIO_KEYS):
+ *   {{uri0}} Mamamayan
  *
- * SQD grid uses table cells with row×column placeholders:
- *   {{sqd0_lubos_na_sang_ayon}}  {{sqd0_sang_ayon}} ...
+ * SQD grid uses compact table cells: one '☐' glyph per rating column,
+ * filled positionally at merge time (see fillSqdTable).
  */
 
 // ──────────────────────────────────
@@ -15,50 +16,50 @@
 // If the "Diagnose Deployment" menu reports anything other than this,
 // the Apps Script project is running STALE code (files not re-pasted).
 // ──────────────────────────────────
-var MERGE_VERSION = 'v9.3-cc-na';
+var MERGE_VERSION = 'v9.4-short-keys';
 
 // ──────────────────────────────────
 // Radio groups: field title → { option label → exact template key }
 // Keys match the template placeholders EXACTLY (no generation, no truncation).
 var RADIO_KEYS = {
   'Uri ng Kliyente': {
-    'Mamamayan': 'uri_mamamayan',
-    'Negosyo': 'uri_negosyo',
-    'Gobyerno (empleyado o mula sa ibang ahensiya)': 'uri_gobyerno_empleyado_o_mula_sa_ibang_ahensiya'
+    'Mamamayan': 'uri0',
+    'Negosyo': 'uri1',
+    'Gobyerno (empleyado o mula sa ibang ahensiya)': 'uri2'
   },
   'Edad': {
-    'Mas mababa sa 18 y/o': 'edad_mas_mababa_sa_18_yo',
-    '18-24 y/o': 'edad_18_24_yo',
-    '25-34 y/o': 'edad_25_34_yo',
-    '35-44 y/o': 'edad_35_44_yo',
-    '45-54 y/o': 'edad_45_54_yo',
-    '55-64 y/o': 'edad_55_64_yo',
-    '65 y/o pataas': 'edad_65_yo_pataas'
+    'Mas mababa sa 18 y/o': 'edad0',
+    '18-24 y/o': 'edad1',
+    '25-34 y/o': 'edad2',
+    '35-44 y/o': 'edad3',
+    '45-54 y/o': 'edad4',
+    '55-64 y/o': 'edad5',
+    '65 y/o pataas': 'edad6'
   },
   'Kasarian': {
-    'Lalaki': 'kasarian_lalaki',
-    'Babae': 'kasarian_babae',
-    'LGBTQIA+': 'kasarian_lgbtqia',
-    'Hindi nais sabihin': 'kasarian_hindi_nais_sabihin'
+    'Lalaki': 'kas0',
+    'Babae': 'kas1',
+    'LGBTQIA+': 'kas2',
+    'Hindi nais sabihin': 'kas3'
   },
   'CC1. Alin sa mga sumusunod ang naglalarawan ng iyong kaalaman sa CC/Gabay?': {
-    'Alam ko kung ano ang Gabay, at nakita ko ang Gabay ng tanggapang ito.': 'cc1_alam_ko_kung_ano_ang_gabay_at_nakita_ko_ang_gabay_ng_t',
-    'Alam ko kung ano ang Gabay, ngunit hindi ko nakita ang Gabay ng tanggapang ito.': 'cc1_alam_ko_kung_ano_ang_gabay_ngunit_hindi_ko_nakita_an',
-    'Nalaman ko kung ano ang Gabay noong nakita ko ang Gabay ng tanggapang ito.': 'cc1_nalaman_ko_kung_ano_ang_gabay_noong_nakita_ko_ang_gab',
-    'Hindi ko alam kung ano ang Gabay, at hindi ako nakakita ng Gabay sa tanggapang ito. (Piliin ang N/A sa CC2 at CC3.)': 'cc1_hindi_ko_alam_kung_ano_ang_gabay_at_hindi_ako_nakakak'
+    'Alam ko kung ano ang Gabay, at nakita ko ang Gabay ng tanggapang ito.': 'cc1_0',
+    'Alam ko kung ano ang Gabay, ngunit hindi ko nakita ang Gabay ng tanggapang ito.': 'cc1_1',
+    'Nalaman ko kung ano ang Gabay noong nakita ko ang Gabay ng tanggapang ito.': 'cc1_2',
+    'Hindi ko alam kung ano ang Gabay, at hindi ako nakakita ng Gabay sa tanggapang ito. (Piliin ang N/A sa CC2 at CC3.)': 'cc1_3'
   },
   'CC2. Kung alam ang Gabay, masasabi mo ba na ang Gabay ng tanggapang ito ay:': {
-    'Madaling makita': 'cc2_madaling_makita',
-    'Bahagyang nakikita': 'cc2_bahagyang_nakikita',
-    'Mahirap makita': 'cc2_mahirap_makita',
-    'Hindi makita': 'cc2_hindi_makita',
-    'N/A': 'cc2_na'
+    'Madaling makita': 'cc2_0',
+    'Bahagyang nakikita': 'cc2_1',
+    'Mahirap makita': 'cc2_2',
+    'Hindi makita': 'cc2_3',
+    'N/A': 'cc2_4'
   },
   'CC3. Kung alam ang Gabay, gaano nakatulong ang Gabay sa iyong transaksiyon?': {
-    'Lubos na nakatulong': 'cc3_lubos_na_nakatulong',
-    'Bahagyang nakatulong': 'cc3_bahagyang_nakatulong',
-    'Hindi nakatulong': 'cc3_hindi_nakatulong',
-    'N/A': 'cc3_na'
+    'Lubos na nakatulong': 'cc3_0',
+    'Bahagyang nakatulong': 'cc3_1',
+    'Hindi nakatulong': 'cc3_2',
+    'N/A': 'cc3_3'
   }
 };
 
@@ -66,43 +67,43 @@ var RADIO_KEYS = {
 // Field titles are the SAME Tagalog sheet headers; only option labels differ.
 var RADIO_KEYS_EN = {
   'Uri ng Kliyente': {
-    'Citizen': 'uri_mamamayan',
-    'Business': 'uri_negosyo',
-    'Government (Employee or from another agency)': 'uri_gobyerno_empleyado_o_mula_sa_ibang_ahensiya'
+    'Citizen': 'uri0',
+    'Business': 'uri1',
+    'Government (Employee or from another agency)': 'uri2'
   },
   'Edad': {
-    'Below 18 y/o': 'edad_mas_mababa_sa_18_yo',
-    '18-24 y/o': 'edad_18_24_yo',
-    '25-34 y/o': 'edad_25_34_yo',
-    '35-44 y/o': 'edad_35_44_yo',
-    '45-54 y/o': 'edad_45_54_yo',
-    '55-64 y/o': 'edad_55_64_yo',
-    '65 y/o and above': 'edad_65_yo_pataas'
+    'Below 18 y/o': 'edad0',
+    '18-24 y/o': 'edad1',
+    '25-34 y/o': 'edad2',
+    '35-44 y/o': 'edad3',
+    '45-54 y/o': 'edad4',
+    '55-64 y/o': 'edad5',
+    '65 y/o and above': 'edad6'
   },
   'Kasarian': {
-    'Man': 'kasarian_lalaki',
-    'Woman': 'kasarian_babae',
-    'LGBTQIA+': 'kasarian_lgbtqia',
-    'Prefer not to say': 'kasarian_hindi_nais_sabihin'
+    'Man': 'kas0',
+    'Woman': 'kas1',
+    'LGBTQIA+': 'kas2',
+    'Prefer not to say': 'kas3'
   },
   'CC1. Alin sa mga sumusunod ang naglalarawan ng iyong kaalaman sa CC/Gabay?': {
-    'I know what a CC is and I saw this office\u2019s CC.': 'cc1_alam_ko_kung_ano_ang_gabay_at_nakita_ko_ang_gabay_ng_t',
-    'I know what a CC is but I did NOT see this office\u2019s CC.': 'cc1_alam_ko_kung_ano_ang_gabay_ngunit_hindi_ko_nakita_an',
-    'I learned of the CC only when I saw this office\u2019s CC.': 'cc1_nalaman_ko_kung_ano_ang_gabay_noong_nakita_ko_ang_gab',
-    'I do not know what a CC is and I did not see one in this office. (Answer \u2018N/A\u2019 on CC2 and CC3)': 'cc1_hindi_ko_alam_kung_ano_ang_gabay_at_hindi_ako_nakakak'
+    'I know what a CC is and I saw this office\u2019s CC.': 'cc1_0',
+    'I know what a CC is but I did NOT see this office\u2019s CC.': 'cc1_1',
+    'I learned of the CC only when I saw this office\u2019s CC.': 'cc1_2',
+    'I do not know what a CC is and I did not see one in this office. (Answer \u2018N/A\u2019 on CC2 and CC3)': 'cc1_3'
   },
   'CC2. Kung alam ang Gabay, masasabi mo ba na ang Gabay ng tanggapang ito ay:': {
-    'Easy to see': 'cc2_madaling_makita',
-    'Somewhat easy to see': 'cc2_bahagyang_nakikita',
-    'Difficult to see': 'cc2_mahirap_makita',
-    'Not visible at all': 'cc2_hindi_makita',
-    'N/A': 'cc2_na'
+    'Easy to see': 'cc2_0',
+    'Somewhat easy to see': 'cc2_1',
+    'Difficult to see': 'cc2_2',
+    'Not visible at all': 'cc2_3',
+    'N/A': 'cc2_4'
   },
   'CC3. Kung alam ang Gabay, gaano nakatulong ang Gabay sa iyong transaksiyon?': {
-    'Helped very much': 'cc3_lubos_na_nakatulong',
-    'Somewhat helped': 'cc3_bahagyang_nakatulong',
-    'Did not help': 'cc3_hindi_nakatulong',
-    'N/A': 'cc3_na'
+    'Helped very much': 'cc3_0',
+    'Somewhat helped': 'cc3_1',
+    'Did not help': 'cc3_2',
+    'N/A': 'cc3_3'
   }
 };
 
@@ -127,6 +128,69 @@ function textEquals(a, b) {
   return String(a || '').replace(/[\u2018\u2019]/g, "'").toLowerCase().trim() ===
          String(b || '').replace(/[\u2018\u2019]/g, "'").toLowerCase().trim();
 }
+
+// Legacy placeholder keys (pre-v9.4 long names) → new short key. Templates
+// built before the rename keep filling without regeneration; generators and
+// verification accept either spelling.
+var LEGACY_RADIO_KEYS = {
+  'uri0': ['uri_mamamayan'],
+  'uri1': ['uri_negosyo'],
+  'uri2': ['uri_gobyerno_empleyado_o_mula_sa_ibang_ahensiya'],
+  'edad0': ['edad_mas_mababa_sa_18_yo'],
+  'edad1': ['edad_18_24_yo'],
+  'edad2': ['edad_25_34_yo'],
+  'edad3': ['edad_35_44_yo'],
+  'edad4': ['edad_45_54_yo'],
+  'edad5': ['edad_55_64_yo'],
+  'edad6': ['edad_65_yo_pataas'],
+  'kas0': ['kasarian_lalaki'],
+  'kas1': ['kasarian_babae'],
+  'kas2': ['kasarian_lgbtqia'],
+  'kas3': ['kasarian_hindi_nais_sabihin'],
+  'cc1_0': [
+    'cc1_alam_ko_kung_ano_ang_gabay_at_nakita_ko_ang_gabay_ng_t',
+    'cc1_alam_ko_kung_ano_ang_gabay_at_nakita_ko_ang_gabay_ng_tang'
+  ],
+  'cc1_1': [
+    'cc1_alam_ko_kung_ano_ang_gabay_ngunit_hindi_ko_nakita_an',
+    'cc1_alam_ko_kung_ano_ang_gabay_ngunit_hindi_ko_nakita_ang_gab'
+  ],
+  'cc1_2': [
+    'cc1_nalaman_ko_kung_ano_ang_gabay_noong_nakita_ko_ang_gab',
+    'cc1_nalaman_ko_kung_ano_ang_gabay_noong_nakita_ko_ang_gabay_ng'
+  ],
+  'cc1_3': [
+    'cc1_hindi_ko_alam_kung_ano_ang_gabay_at_hindi_ako_nakakak',
+    'cc1_hindi_ko_alam_kung_ano_ang_gabay_at_hindi_ako_nakakakita_ng'
+  ],
+  'cc2_0': ['cc2_madaling_makita'],
+  'cc2_1': ['cc2_bahagyang_nakikita'],
+  'cc2_2': ['cc2_mahirap_makita'],
+  'cc2_3': ['cc2_hindi_makita'],
+  'cc2_4': ['cc2_na'],
+  'cc3_0': ['cc3_lubos_na_nakatulong'],
+  'cc3_1': ['cc3_bahagyang_nakatulong'],
+  'cc3_2': ['cc3_hindi_nakatulong'],
+  'cc3_3': ['cc3_na']
+};
+
+// Every placeholder spelling (short + legacy) that may appear in a template
+function radioKeyVariants(key) {
+  var legacy = LEGACY_RADIO_KEYS[key];
+  return legacy ? [key].concat(legacy) : [key];
+}
+
+// Whether a prepared template contains a key under ANY of its spellings
+function hasTemplateKey(bodyText, key) {
+  var variants = radioKeyVariants(key);
+  for (var i = 0; i < variants.length; i++) {
+    if (bodyText.indexOf('{{' + variants[i] + '}}') !== -1) return true;
+  }
+  return false;
+}
+
+// CC2/CC3 N/A option keys (auto-checked when CC1 = not aware)
+var CC_NA_KEYS = ['cc2_4', 'cc3_3'];
 
 // Option map for a field: merges Tagalog AND English labels → the same keys.
 // Merging both means a document fills correctly no matter which language the
@@ -198,8 +262,9 @@ var SQD_COLUMNS = [
 
 var SQD_ROWS = 9; // SQD0 through SQD8
 
-// All placeholder keys a fully-prepared template must contain.
-// TL and EN templates share the SAME placeholder set (89 keys).
+// All placeholder keys a fully-prepared template must contain (35: 27 radio +
+// 8 free-text). TL and EN templates share the SAME placeholder set. Verification
+// accepts the legacy long spellings too (hasTemplateKey).
 function expectedTemplateKeys() {
   var keys = [];
   var titles = Object.keys(RADIO_KEYS);
@@ -208,9 +273,6 @@ function expectedTemplateKeys() {
       var k = RADIO_KEYS[t][label];
       if (keys.indexOf(k) === -1) keys.push(k);
     });
-  });
-  ['cc2_na', 'cc3_na'].forEach(function(k) {
-    if (keys.indexOf(k) === -1) keys.push(k);
   });
   // NOTE: SQD grid cells are NOT placeholder keys anymore — the compact grid
   // holds a single '☐' glyph per rating cell and is filled positionally at
@@ -538,7 +600,7 @@ function mergeResponseIntoDoc(doc, data, isEnglish) {
     Object.keys(optionMap).forEach(function(optionLabel) {
       var key = optionMap[optionLabel];
       var mark;
-      if ((key === 'cc2_na' || key === 'cc3_na') && !selected && cc1NotAware) {
+      if (CC_NA_KEYS.indexOf(key) !== -1 && !selected && cc1NotAware) {
         mark = '☑';
       } else {
         mark = textEquals(selected, optionLabel) ? '☑' : '☐';
@@ -553,13 +615,7 @@ function mergeResponseIntoDoc(doc, data, isEnglish) {
     // the literal characters below.
     var glyph = '[☐□☑☒■✓✗]';
     Object.keys(marks).forEach(function(key) {
-      var mark = marks[key];
-      // 1. glyph + {{key}} + glyph (duplicate checkbox after placeholder)
-      body.replaceText(glyph + '[ \\t]*' + ciPattern(key) + '[ \\t]*' + glyph, mark);
-      // 2. glyph + {{key}} or glyph {{key}} — standard case
-      body.replaceText(glyph + '[ \\t]*' + ciPattern(key), mark);
-      // 3. plain {{key}} with no glyph prefix (Tagalog template style)
-      body.replaceText(ciPattern(key), mark);
+      fillRadioKey(body, key, marks[key], glyph);
     });
   });
 
@@ -857,6 +913,20 @@ function ciPattern(key) {
   // GAS replaceText uses RE2 regex. {{ and }} are literal
   // (not quantifiers) so no escaping needed. Simple = reliable.
   return '{{' + key + '}}';
+}
+
+// Write a mark for one radio key into the document body. Runs the 3 replace
+// patterns for the SHORT key AND every legacy spelling, so templates created
+// before the v9.4 short-key rename keep filling without regeneration.
+function fillRadioKey(body, key, mark, glyph) {
+  radioKeyVariants(key).forEach(function(v) {
+    // 1. glyph + {{key}} + glyph (duplicate checkbox after placeholder)
+    body.replaceText(glyph + '[ \\t]*' + ciPattern(v) + '[ \\t]*' + glyph, mark);
+    // 2. glyph + {{key}} or glyph {{key}} — standard case
+    body.replaceText(glyph + '[ \\t]*' + ciPattern(v), mark);
+    // 3. plain {{key}} with no glyph prefix (Tagalog template style)
+    body.replaceText(ciPattern(v), mark);
+  });
 }
 
 // ──────────────────────────────────
@@ -1917,7 +1987,7 @@ function verifyTemplate() {
     results.push('✓ Placeholders found: ' + count);
 
     var expected = expectedTemplateKeys();
-    var missing = expected.filter(function(k) { return bodyText.indexOf('{{' + k + '}}') === -1; });
+    var missing = expected.filter(function(k) { return !hasTemplateKey(bodyText, k); });
     if (missing.length === 0) {
       results.push('✓ Lahat ng ' + expected.length + ' placeholders ay naroroon');
     } else {
@@ -1982,7 +2052,7 @@ function checkDeployment() {
       (enText.match(/\{\{\w+\}\}/g) || []).forEach(function(p) { uniq[p] = true; });
       lines.push('EN placeholders: ' + Object.keys(uniq).length + ' unique / ' + enText.split('{{').length + ' total');
       var expected = expectedTemplateKeys();
-      var missing = expected.filter(function(k) { return enText.indexOf('{{' + k + '}}') === -1; });
+      var missing = expected.filter(function(k) { return !hasTemplateKey(enText, k); });
       lines.push('EN missing keys: ' + (missing.length === 0 ? 'NONE (all ' + expected.length + ' present)' : missing.join(', ')));
       lines.push('EN SQD grid: ' + sqdGridStateLine(enDoc.getBody()));
       // Radio format sniff: how many literal checkbox glyphs sit right before a {{key}}
@@ -1990,7 +2060,7 @@ function checkDeployment() {
       var purePlaceholders = (enText.match(/[^☐□☑☒■✓✗][ \t]*\{\{/g) || []).length;
       lines.push('EN glyph-before-{{ (pattern 2): ' + glyphBefore);
       lines.push('EN pure {{}} occurrences (pattern 3): ' + purePlaceholders);
-      lines.push('EN sample: ' + enText.split('\n').filter(function(l) { return l.indexOf('uri_mamamayan') !== -1; })[0] || '(no uri_mamamayan line found!)');
+      lines.push('EN sample: ' + (enText.split('\n').filter(function(l) { return l.indexOf('{{uri0}}') !== -1 || l.indexOf('uri_mamamayan') !== -1; })[0] || '(no client-type line found!)'));
     } catch (e) {
       lines.push('EN doc ERROR: ' + e.message);
     }

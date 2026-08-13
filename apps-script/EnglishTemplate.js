@@ -22,36 +22,36 @@
 
 var EN_RADIO_KEYS = [
   // Uri ng Kliyente
-  { label: 'Government (Employee or from another agency)', key: 'uri_gobyerno_empleyado_o_mula_sa_ibang_ahensiya', not: ['charter', 'cc'] },
-  { label: 'Citizen', key: 'uri_mamamayan', not: ['charter', 'cc'] },
-  { label: 'Business', key: 'uri_negosyo', not: ['charter', 'cc'] },
+  { label: 'Government (Employee or from another agency)', key: 'uri2', not: ['charter', 'cc'] },
+  { label: 'Citizen', key: 'uri0', not: ['charter', 'cc'] },
+  { label: 'Business', key: 'uri1', not: ['charter', 'cc'] },
   // Edad
-  { label: 'Below 18 y/o', key: 'edad_mas_mababa_sa_18_yo' },
-  { label: '65 y/o and above', key: 'edad_65_yo_pataas' },
-  { label: '18-24 y/o', key: 'edad_18_24_yo' },
-  { label: '25-34 y/o', key: 'edad_25_34_yo' },
-  { label: '35-44 y/o', key: 'edad_35_44_yo' },
-  { label: '45-54 y/o', key: 'edad_45_54_yo' },
-  { label: '55-64 y/o', key: 'edad_55_64_yo' },
+  { label: 'Below 18 y/o', key: 'edad0' },
+  { label: '65 y/o and above', key: 'edad6' },
+  { label: '18-24 y/o', key: 'edad1' },
+  { label: '25-34 y/o', key: 'edad2' },
+  { label: '35-44 y/o', key: 'edad3' },
+  { label: '45-54 y/o', key: 'edad4' },
+  { label: '55-64 y/o', key: 'edad5' },
   // Kasarian
-  { label: 'Prefer not to say', key: 'kasarian_hindi_nais_sabihin' },
-  { label: 'LGBTQIA+', key: 'kasarian_lgbtqia' },
-  { label: 'Woman', key: 'kasarian_babae' },
-  { label: 'Man', key: 'kasarian_lalaki' },
+  { label: 'Prefer not to say', key: 'kas3' },
+  { label: 'LGBTQIA+', key: 'kas2' },
+  { label: 'Woman', key: 'kas1' },
+  { label: 'Man', key: 'kas0' },
   // CC1
-  { label: "I know what a CC is and I saw this office's CC.", key: 'cc1_alam_ko_kung_ano_ang_gabay_at_nakita_ko_ang_gabay_ng_t' },
-  { label: "I know what a CC is but I did NOT see this office's CC.", key: 'cc1_alam_ko_kung_ano_ang_gabay_ngunit_hindi_ko_nakita_an' },
-  { label: "I learned of the CC only when I saw this office's CC.", key: 'cc1_nalaman_ko_kung_ano_ang_gabay_noong_nakita_ko_ang_gab' },
-  { label: "I do not know what a CC is and I did not see one in this office.", key: 'cc1_hindi_ko_alam_kung_ano_ang_gabay_at_hindi_ako_nakakak' },
+  { label: "I know what a CC is and I saw this office's CC.", key: 'cc1_0' },
+  { label: "I know what a CC is but I did NOT see this office's CC.", key: 'cc1_1' },
+  { label: "I learned of the CC only when I saw this office's CC.", key: 'cc1_2' },
+  { label: "I do not know what a CC is and I did not see one in this office.", key: 'cc1_3' },
   // CC2 (N/A handled separately, anchored after "Easy to see")
-  { label: 'Easy to see', key: 'cc2_madaling_makita' },
-  { label: 'Somewhat easy to see', key: 'cc2_bahagyang_nakikita' },
-  { label: 'Not visible at all', key: 'cc2_hindi_makita' },
-  { label: 'Difficult to see', key: 'cc2_mahirap_makita' },
+  { label: 'Easy to see', key: 'cc2_0' },
+  { label: 'Somewhat easy to see', key: 'cc2_1' },
+  { label: 'Not visible at all', key: 'cc2_3' },
+  { label: 'Difficult to see', key: 'cc2_2' },
   // CC3 (N/A handled separately, anchored after "Helped very much")
-  { label: 'Helped very much', key: 'cc3_lubos_na_nakatulong' },
-  { label: 'Somewhat helped', key: 'cc3_bahagyang_nakatulong' },
-  { label: 'Did not help', key: 'cc3_hindi_nakatulong' }
+  { label: 'Helped very much', key: 'cc3_0' },
+  { label: 'Somewhat helped', key: 'cc3_1' },
+  { label: 'Did not help', key: 'cc3_2' }
 ];
 
 // SQD grid rating columns (English labels, TL fallback)
@@ -240,8 +240,10 @@ function injectRadioIntoContainer(container, report) {
 }
 
 // ──────────────────────────────────
-// N/A lines: cc2_na after "Easy to see", cc3_na after "Helped very much"
-// (document order walk so CC2's N/A is never confused with CC3's)
+// N/A lines: cc2_4 after "Easy to see", cc3_3 after "Helped very much"
+// (document order walk so CC2's N/A is never confused with CC3's).
+// The short keys are v9.4+; the legacy cc2_na/cc3_na spellings are accepted
+// so an already-prepared template is never double-injected.
 // ──────────────────────────────────
 
 function injectNAPass(containers, report) {
@@ -252,7 +254,9 @@ function injectNAPass(containers, report) {
 
   containers.forEach(function(c) {
     var text = c.getText();
-    if (text.indexOf('{{cc2_na}}') !== -1 || text.indexOf('{{cc3_na}}') !== -1) return;
+    var hasNa2 = text.indexOf('{{cc2_4}}') !== -1 || text.indexOf('{{cc2_na}}') !== -1;
+    var hasNa3 = text.indexOf('{{cc3_3}}') !== -1 || text.indexOf('{{cc3_na}}') !== -1;
+    if (hasNa2 && hasNa3) { na2 = true; na3 = true; return; }
     var norm = normalizeText(text);
     var hasEasy = norm.indexOf('easy to see') !== -1;
     var hasHelped = norm.indexOf('helped very much') !== -1;
@@ -270,12 +274,12 @@ function injectNAPass(containers, report) {
       var helped = seenHelped || (hasHelped && before.indexOf('helped very much') !== -1);
 
       if (!na2 && easy && !helped) {
-        insertNAPlaceholderAt(c, m.index, 'cc2_na');
+        insertNAPlaceholderAt(c, m.index, 'cc2_4');
         na2 = true;
         report.na++;
         break;
       } else if (!na3 && helped) {
-        insertNAPlaceholderAt(c, m.index, 'cc3_na');
+        insertNAPlaceholderAt(c, m.index, 'cc3_3');
         na3 = true;
         report.na++;
         break;
@@ -285,8 +289,8 @@ function injectNAPass(containers, report) {
     if (hasHelped) seenHelped = true;
   });
 
-  if (!na2) report.notFound.push('cc2_na (N/A line after "Easy to see")');
-  if (!na3) report.notFound.push('cc3_na (N/A line after "Helped very much")');
+  if (!na2) report.notFound.push('cc2_4 (N/A line after "Easy to see")');
+  if (!na3) report.notFound.push('cc3_3 (N/A line after "Helped very much")');
 }
 
 function insertNAPlaceholderAt(c, idx, key) {
@@ -566,7 +570,7 @@ function verifyEnglishTemplate() {
     results.push('\u2713 Placeholders: ' + Object.keys(unique).length + ' unique / ' + total + ' total');
 
     var expected = expectedTemplateKeys();
-    var missing = expected.filter(function(k) { return text.indexOf('{{' + k + '}}') === -1; });
+    var missing = expected.filter(function(k) { return !hasTemplateKey(text, k); });
     if (missing.length === 0) {
       results.push('\u2713 Lahat ng ' + expected.length + ' placeholders ay naroroon');
     } else {
