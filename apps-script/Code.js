@@ -36,6 +36,7 @@ function onOpen() {
     .addItem('Fix Template Layout', 'repairTemplate')
     .addSeparator()
     .addItem('Diagnose Deployment', 'checkDeployment')
+    .addItem('Diagnose Batch Append', 'diagnoseBatchAppend')
     .addItem('Test Merge (English) — Selected Row', 'testMergeRow')
     .addSeparator()
     .addItem('Remove Duplicate Reference Numbers', 'cleanupDuplicateRefs')

@@ -15,7 +15,7 @@
 // If the "Diagnose Deployment" menu reports anything other than this,
 // the Apps Script project is running STALE code (files not re-pasted).
 // ──────────────────────────────────
-var MERGE_VERSION = 'v4-re2safe-glyph-agnostic';
+var MERGE_VERSION = 'v5-batch-header-fill';
 
 // ──────────────────────────────────
 // Radio groups: field title → { option label → exact template key }
@@ -308,40 +308,16 @@ function mergeResponseIntoDoc(doc, data, isEnglish) {
   var body = doc.getBody();
 
   // ── 1. Simple text fields ──
-  var simpleFields = [
-    { match: 'pangalanNgTanggapan', value: getValueByPattern(data, /Pangalan ng tanggapan/) },
-    { match: 'serbisyongIbinigay', value: getValueByPattern(data, /Serbisyong ibinigay/) },
-    { match: 'petsa', value: getValueByPattern(data, /Petsa/) },
-    { match: 'rehiyon', value: getValueByPattern(data, /Rehiyon/) },
-    { match: 'mgaMungkahi', value: getValueByPattern(data, /mungkahi/) },
-    { match: 'pangalan', value: getValueByPattern(data, /Pangalan \(optional\)/) },
-    { match: 'contactNumber', value: getValueByPattern(data, /Contact number/) },
-    { match: 'emailAddress', value: getValueByPattern(data, /Email address/) }
-  ];
-  var serbisyoVal = simpleFields[1].value;
-  // Exact match only: the "Other/s" option stores one of these two canonical
-  // strings. A substring check would falsely match legitimate services that
-  // mention "Other Official Documents" (e.g. "Pagtanggap ng mga papasok na
-  // komunikasyon... Other Official Documents"), rewriting the service name.
-  var isOtherService =
-    serbisyoVal === 'Other/s (Tukuyin ang iba pang serbisyo)' ||
-    serbisyoVal === 'Other/s (Specify other service)';
-  if (serbisyoVal) {
-    if (isOtherService) {
-      // "Other/s" — use the typed-in service text when available
-      var otherVal = getValueByPattern(data, /Serbisyong iba|Kung.*Other/);
-      if (otherVal) {
-        simpleFields[1].value = otherVal;
-      } else if (isEnglish) {
-        simpleFields[1].value = 'Other/s (Specify other service)';
-      }
-    } else if (isEnglish && EN_SERVICES[serbisyoVal]) {
-      simpleFields[1].value = EN_SERVICES[serbisyoVal];
-    }
-  }
-
-  simpleFields.forEach(function(f) {
-    if (f.value !== null) body.replaceText(ciPattern(f.match), f.value);
+  // Values come from the shared helper (simpleFieldValues) so the batch path's
+  // appended-region re-fill writes byte-identical output. Exact-match rule
+  // (preserved from the original implementation): the "Other/s" option stores
+  // one of two canonical strings and must match EXACTLY — a substring check
+  // would falsely match legitimate services that mention "Other Official
+  // Documents", rewriting the service name.
+  var simpleValues = simpleFieldValues(data, isEnglish);
+  HEADER_SIMPLE_FIELDS.forEach(function(f) {
+    var v = simpleValues[f.match];
+    if (v !== null) body.replaceText(ciPattern(f.match), v);
   });
 
   // ── 2. Radio groups (checkbox-style fill) ──
@@ -618,6 +594,111 @@ function ciPattern(key) {
 }
 
 // ──────────────────────────────────
+// Free-text fields: sheet-header pattern → placeholder key.
+// Single source of truth shared by mergeResponseIntoDoc (fills every template
+// copy) and the batch path (re-fills ONLY the freshly appended entry's region,
+// so a stale/copy-race can never leave literal {{...}} in an appended header).
+// ──────────────────────────────────
+
+var HEADER_SIMPLE_FIELDS = [
+  { match: 'pangalanNgTanggapan', pattern: /Pangalan ng tanggapan/ },
+  { match: 'serbisyongIbinigay', pattern: /Serbisyong ibinigay/ },
+  { match: 'petsa', pattern: /Petsa/ },
+  { match: 'rehiyon', pattern: /Rehiyon/ },
+  { match: 'mgaMungkahi', pattern: /mungkahi/ },
+  { match: 'pangalan', pattern: /Pangalan \(optional\)/ },
+  { match: 'contactNumber', pattern: /Contact number/ },
+  { match: 'emailAddress', pattern: /Email address/ }
+];
+
+// Resolve the display value for every free-text field for one response row.
+// Mirrors the "Other/s" + English-service translation logic so the re-fill pass
+// is byte-identical to the values mergeResponseIntoDoc wrote on page 1.
+function simpleFieldValues(data, isEnglish) {
+  var out = {};
+  HEADER_SIMPLE_FIELDS.forEach(function(f) {
+    out[f.match] = getValueByPattern(data, f.pattern); // '' if blank, null if column missing
+  });
+  var serbisyoVal = out.serbisyongIbinigay;
+  var isOtherService =
+    serbisyoVal === 'Other/s (Tukuyin ang iba pang serbisyo)' ||
+    serbisyoVal === 'Other/s (Specify other service)';
+  if (serbisyoVal) {
+    if (isOtherService) {
+      var otherVal = getValueByPattern(data, /Serbisyong iba|Kung.*Other/);
+      if (otherVal) {
+        out.serbisyongIbinigay = otherVal;
+      } else if (isEnglish) {
+        out.serbisyongIbinigay = 'Other/s (Specify other service)';
+      }
+    } else if (isEnglish && EN_SERVICES[serbisyoVal]) {
+      out.serbisyongIbinigay = EN_SERVICES[serbisyoVal];
+    }
+  }
+  return out;
+}
+
+// Whole-body safety net: re-apply the free-text fields anywhere in an already
+// merged body. data === null blanks any leftover {{headerKey}} literals instead
+// of shipping raw placeholder text (used as the final cleanup on the master).
+function applyHeaderPlaceholders(body, data, isEnglish) {
+  var values = data ? simpleFieldValues(data, isEnglish) : null;
+  HEADER_SIMPLE_FIELDS.forEach(function(f) {
+    if (values) {
+      if (values[f.match] !== null) body.replaceText(ciPattern(f.match), values[f.match]);
+    } else {
+      body.replaceText(ciPattern(f.match), '');
+    }
+  });
+}
+
+// Fill {{simple}} placeholders ONLY inside the freshly appended child range
+// [fromIndex, fromIndex + count) of the master body. Never body-wide: a
+// body-wide replaceText could overwrite an EARLIER entry's leftover header
+// placeholder with the CURRENT row's data — the very cross-contamination this
+// feature is meant to prevent.
+function fillSimpleFieldsInRange(masterBody, fromIndex, count, values) {
+  var keys = [];
+  Object.keys(values).forEach(function(k) { if (values[k] !== null) keys.push(k); });
+  if (keys.length === 0) return;
+  for (var i = 0; i < count; i++) {
+    replaceSimpleInElement(masterBody.getChild(fromIndex + i), keys, values);
+  }
+}
+
+function replaceSimpleInElement(el, keys, values) {
+  var type = el.getType();
+  if (type === DocumentApp.ElementType.PARAGRAPH || type === DocumentApp.ElementType.LIST_ITEM) {
+    keys.forEach(function(k) { el.asParagraph().replaceText(ciPattern(k), String(values[k])); });
+    return;
+  }
+  if (type === DocumentApp.ElementType.TABLE) {
+    var table = el.asTable();
+    for (var r = 0; r < table.getNumRows(); r++) {
+      var row = table.getRow(r);
+      for (var c = 0; c < row.getNumCells(); c++) {
+        var cell = row.getCell(c);
+        for (var p = 0; p < cell.getNumChildren(); p++) {
+          replaceSimpleInElement(cell.getChild(p), keys, values);
+        }
+      }
+    }
+  }
+}
+
+// Open a freshly-created Drive file, retrying while the copy propagates.
+function openDocWithRetry(fileId) {
+  for (var attempt = 0; attempt < 5; attempt++) {
+    try {
+      return DocumentApp.openById(fileId);
+    } catch (e) {
+      if (attempt < 4) Utilities.sleep(500);
+      else throw e;
+    }
+  }
+}
+
+// ──────────────────────────────────
 // Main: generate printable sheet for a given row
 // Returns: Google Doc URL (https://...) or an error message string.
 // templateChoice: 'auto' (use row's "Wika ng sarbey") | 'en' | 'tl'
@@ -785,30 +866,63 @@ function appendRowEntry(masterBody, rowIndex, templateChoice, sheet, outputFolde
   if (!tplId) throw new Error(isEnglish ? 'No English template set.' : 'No template set.');
 
   var tplFile = DriveApp.getFileById(tplId);
-  var tempFile = tplFile.makeCopy('_batch_tmp_' + rowIndex, outputFolder);
-
-  // Retry: Drive may need a moment to propagate the copy.
+  var tempFile = null;
   var tempDoc = null;
-  for (var attempt = 0; attempt < 5; attempt++) {
+  var filled = null;
+  var appendedCount = 0;
+  var fromIndex = 0;
+
+  // The temp copy + reopen dance has one flaky step: opening a freshly-made
+  // Drive copy can return a stale/empty handle before Drive materializes it
+  // (openById succeeds, but the body has no children). That silently turned a
+  // batch row into a blank page AND lost the entry's header. Retry once with a
+  // fresh copy when an attempt appends zero children; the page break added for
+  // the failed attempt is removed so retries don't stack blank pages.
+  for (var attempt = 0; attempt < 2; attempt++) {
+    tempFile = tplFile.makeCopy('_batch_tmp_' + rowIndex + (attempt ? '_r' + attempt : ''), outputFolder);
     try {
-      tempDoc = DocumentApp.openById(tempFile.getId());
-      break;
+      tempDoc = openDocWithRetry(tempFile.getId());
+      mergeResponseIntoDoc(tempDoc, data, isEnglish);
+      tempDoc.saveAndClose();
+      // Reopen for a clean read of the filled body (cached handles can lag).
+      filled = DocumentApp.openById(tempFile.getId());
+      masterBody.appendPageBreak();
+      fromIndex = masterBody.getNumChildren();
+      appendBodyElements(masterBody, filled.getBody());
+      appendedCount = masterBody.getNumChildren() - fromIndex;
+      filled.saveAndClose();
+      if (appendedCount > 0) break; // success
+      // Empty append — undo the page break, then retry once with a fresh copy.
+      if (attempt === 1) throw new Error('Template copy yielded no content after 2 attempts (Drive propagation).');
+      removeChildAt(masterBody, fromIndex - 1);
+      Logger.log('Batch row ' + rowIndex + ': empty append (stale copy?) — retrying with a fresh copy.');
     } catch (e) {
-      if (attempt < 4) Utilities.sleep(500);
-      else throw e;
+      if (attempt === 1) throw e;
+      // If the failure hit before any content landed, undo the page break we
+      // just added so the retry doesn't leave a stray blank page behind.
+      if (appendedCount === 0 && fromIndex > 0) removeChildAt(masterBody, fromIndex - 1);
+      Logger.log('Batch row ' + rowIndex + ' attempt ' + attempt + ' failed: ' + e + ' — retrying with a fresh copy.');
+    } finally {
+      // Best-effort cleanup of this attempt's temp file.
+      try { if (tempFile) tempFile.setTrashed(true); } catch (e) { /* cleanup is best-effort */ }
     }
   }
-  try {
-    mergeResponseIntoDoc(tempDoc, data, isEnglish);
-    tempDoc.saveAndClose();
-    // Reopen for a clean read of the filled body (cached handles can lag).
-    var filled = DocumentApp.openById(tempFile.getId());
-    masterBody.appendPageBreak();
-    appendBodyElements(masterBody, filled.getBody());
-    filled.saveAndClose();
-  } finally {
-    try { tempFile.setTrashed(true); } catch (e) { /* cleanup is best-effort */ }
+
+  // Safety net for the header fields: when a copied entry's header carries
+  // literal {{pangalanNgTanggapan}} / {{serbisyongIbinigay}} / etc. (the
+  // stale-copy race above, or a table cell the copy flattened), re-fill ONLY
+  // this entry's freshly appended region with THIS row's values — never the
+  // whole body, so an earlier entry's leftovers can't be overwritten with the
+  // wrong row's data. Already-filled values are identical, so this is a no-op
+  // on the healthy path.
+  if (appendedCount > 0) {
+    fillSimpleFieldsInRange(masterBody, fromIndex, appendedCount, simpleFieldValues(data, isEnglish));
   }
+}
+
+function removeChildAt(container, index) {
+  if (index < 0 || index >= container.getNumChildren()) return;
+  try { container.getChild(index).removeFromParent(); } catch (e) { /* best-effort */ }
 }
 
 // rowIndexes: array of spreadsheet row numbers (>= 2)
@@ -863,6 +977,10 @@ function generateBatchPrintable(rowIndexes, templateChoice, masterDocId, isFinal
     masterBody = masterDoc.getBody();
     try {
       mergeResponseIntoDoc(masterDoc, firstData, firstEn);
+      // Safety net: if the fresh template copy was read before Drive fully
+      // materialized it, re-apply the header fields with the first row's data.
+      // No-op when the merge already filled them.
+      applyHeaderPlaceholders(masterBody, firstData, firstEn);
     } catch (e) {
       return { ok: false, error: 'generate_failed', detail: 'Row ' + rowIndexes[0] + ': ' + e.message };
     }
@@ -912,6 +1030,126 @@ function exportBatchPdf(docId) {
   var pdfName = file.getName() + '.pdf';
   outputFolder.createFile(pdfBlob).setName(pdfName);
   return { ok: true, docId: docId, pdfName: pdfName };
+}
+
+// ──────────────────────────────────
+// Diagnostic: proves whether appended batch entries actually carry the header.
+// Menu: DILG Survey > Advanced > Diagnose Batch Append (uses the active row).
+// Answers the question "do appended entries get a header from their template
+// copy?" by simulating ONE append into a throwaway master and dumping:
+//   1. the template body's element layout (are the header paragraphs/tables
+//      really in the body, or in a real document header section?),
+//   2. the merged temp copy's leftover {{placeholders}},
+//   3. exactly what landed in the master after appendBodyElements().
+// ──────────────────────────────────
+
+function diagnoseBatchAppend(rowIndex) {
+  var ui = SpreadsheetApp.getUi();
+  var sheet = SpreadsheetApp.getActiveSheet();
+  if (!rowIndex) {
+    rowIndex = sheet.getActiveCell().getRow();
+    if (rowIndex < 2) rowIndex = 2;
+  }
+
+  var lines = [];
+  var data = readResponseRow(rowIndex, sheet);
+  var isEnglish = resolveTemplateChoice(data, 'auto');
+  var tplId = isEnglish
+    ? SCRIPT_PROP.getProperty('TEMPLATE_DOC_ID_EN')
+    : SCRIPT_PROP.getProperty('TEMPLATE_DOC_ID');
+  lines.push('Diagnose Batch Append — row ' + rowIndex + (isEnglish ? ' (EN template)' : ' (TL template)'));
+
+  var masterFile = null;
+  var tempFile = null;
+  try {
+    if (!tplId) throw new Error('No template doc set (TEMPLATE_DOC_ID' + (isEnglish ? '_EN' : '') + ').');
+    var tplFile = DriveApp.getFileById(tplId);
+    lines.push('Template: ' + tplFile.getName());
+
+    // 1. Template body layout (top 12 children) + header section check
+    var tplDoc = DocumentApp.openById(tplId);
+    var tplBody = tplDoc.getBody();
+    lines.push('--- TEMPLATE BODY (' + tplBody.getNumChildren() + ' children) ---');
+    for (var i = 0; i < Math.min(12, tplBody.getNumChildren()); i++) {
+      lines.push('  [' + i + '] ' + tplBody.getChild(i).getType() + ': ' + snippet(tplBody.getChild(i)));
+    }
+    var hdrSec = tplDoc.getHeader();
+    var hdrText = hdrSec ? hdrSec.getText() : '';
+    lines.push('Real document header section: ' + (hdrText.trim() ? 'HAS CONTENT — "' + snippetText(hdrText) + '"' : 'empty / none'));
+    tplDoc.saveAndClose();
+
+    // 2. Master (page 1 path): template copy merged with the row's data
+    var outputFolder = getOutputFolder();
+    masterFile = tplFile.makeCopy('_DIAG_append_master_' + rowIndex, outputFolder);
+    var masterDoc = openDocWithRetry(masterFile.getId());
+    var masterBody = masterDoc.getBody();
+    mergeResponseIntoDoc(masterDoc, data, isEnglish);
+    masterDoc.saveAndClose();
+    masterDoc = DocumentApp.openById(masterFile.getId());
+    masterBody = masterDoc.getBody();
+    var m1 = masterBody.getText().match(/\{\{[^{}]+\}\}/g) || [];
+    lines.push('--- MASTER after merge (page-1 path) ---');
+    lines.push('  Leftover {{...}} in master: ' + (m1.length ? m1.join(' ') : 'NONE'));
+    lines.push('  Master has header text "DEPARTMENT OF THE INTERIOR": ' + (masterBody.getText().indexOf('DEPARTMENT OF THE INTERIOR') !== -1));
+    lines.push('  Master has header text "Document Code": ' + (masterBody.getText().indexOf('Document Code') !== -1));
+
+    // 3. Simulate the append path for a SECOND row using the same template
+    tempFile = tplFile.makeCopy('_DIAG_append_tmp_' + rowIndex, outputFolder);
+    var tempDoc = openDocWithRetry(tempFile.getId());
+    mergeResponseIntoDoc(tempDoc, data, isEnglish);
+    tempDoc.saveAndClose();
+    var filled = DocumentApp.openById(tempFile.getId());
+    var filledBody = filled.getBody();
+    var fLeft = filledBody.getText().match(/\{\{[^{}]+\}\}/g) || [];
+    lines.push('--- FILLED TEMP COPY (' + filledBody.getNumChildren() + ' children) ---');
+    lines.push('  Leftover {{...}} in filled copy: ' + (fLeft.length ? fLeft.join(' ') : 'NONE'));
+    for (var j = 0; j < Math.min(6, filledBody.getNumChildren()); j++) {
+      lines.push('  [' + j + '] ' + filledBody.getChild(j).getType() + ': ' + snippet(filledBody.getChild(j)));
+    }
+
+    masterBody.appendPageBreak();
+    var fromIdx = masterBody.getNumChildren();
+    appendBodyElements(masterBody, filledBody);
+    var appended = masterBody.getNumChildren() - fromIdx;
+    filled.saveAndClose();
+    lines.push('--- APPENDED ' + appended + ' children into master ---');
+    for (var k = fromIdx; k < masterBody.getNumChildren() && k < fromIdx + 6; k++) {
+      lines.push('  [' + k + '] ' + masterBody.getChild(k).getType() + ': ' + snippet(masterBody.getChild(k)));
+    }
+    var full = masterBody.getText();
+    var leftAll = full.match(/\{\{[^{}]+\}\}/g) || [];
+    lines.push('--- APPEND VERDICT ---');
+    lines.push('  Appended region has "DEPARTMENT OF THE INTERIOR": ' + (full.indexOf('DEPARTMENT OF THE INTERIOR') !== -1));
+    lines.push('  Appended region has "Document Code": ' + (full.indexOf('Document Code') !== -1));
+    lines.push('  Leftover {{...}} anywhere in master: ' + (leftAll.length ? leftAll.join(' ') : 'NONE'));
+    lines.push(appended === 0 ? '  ⚠ NO CONTENT APPENDED — stale/empty template copy confirmed.' : '  ✓ ' + appended + ' elements appended (expected if the header survived).');
+
+    masterDoc.saveAndClose();
+  } catch (err) {
+    lines.push('DIAG ERROR: ' + err.message);
+  } finally {
+    try { if (tempFile) tempFile.setTrashed(true); } catch (e) { /* best-effort */ }
+    try { if (masterFile) masterFile.setTrashed(true); } catch (e) { /* best-effort */ }
+  }
+
+  lines.forEach(function(l) { Logger.log(l); });
+  ui.alert('Diagnose Batch Append', lines.join('\n'), ui.ButtonSet.OK);
+}
+
+// Short single-line preview of an element's text for diagnostics
+function snippetText(t) {
+  return String(t).replace(/\n/g, ' ⏎ ').substring(0, 90);
+}
+
+function snippet(el) {
+  var t = '';
+  try { t = el.getText(); } catch (e) { t = ''; }
+  if (el.getType() === DocumentApp.ElementType.TABLE) {
+    try {
+      t = '[TABLE ' + el.getNumRows() + 'x' + el.getRow(0).getNumCells() + '] ' + t;
+    } catch (e) { t = '[TABLE] ' + t; }
+  }
+  return snippetText(t);
 }
 
 // Resolve which template language to use for a row.
