@@ -555,9 +555,25 @@ function triggerStatus() {
   } catch (err) {
     Logger.log('triggerStatus error: ' + err);
   }
+  // mergeVersion + responsesTab let a deployment's actual code age be verified
+  // from the outside (?status=1) — a stale saved deployment keeps serving its
+  // old engine (e.g. pre-v9.4 code cannot fill short-key templates, which is
+  // how "spreadsheet works but web prints placeholders" happened). If the URL
+  // you open still reports an old MERGE_VERSION after a redeploy, the
+  // deployment was not updated to a new version.
+  var mergeVersion = 'unknown';
+  var responsesTab = 'unknown';
+  try {
+    if (typeof MERGE_VERSION !== 'undefined') mergeVersion = MERGE_VERSION;
+  } catch (e) { /* pre-v9.4 code has no MERGE_VERSION — itself a symptom */ }
+  try {
+    responsesTab = getResponseSheet().getName();
+  } catch (e) { /* best-effort */ }
   return {
     status: 'ok',
     version: 'v11',
+    mergeVersion: mergeVersion,
+    responsesTab: responsesTab,
     keepWarmTriggerInstalled: hasKeepWarm,
     cleanupTriggerInstalled: hasCleanup,
     time: new Date().toISOString(),
