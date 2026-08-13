@@ -15,7 +15,7 @@
 // If the "Diagnose Deployment" menu reports anything other than this,
 // the Apps Script project is running STALE code (files not re-pasted).
 // ──────────────────────────────────
-var MERGE_VERSION = 'v7-batch-resume';
+var MERGE_VERSION = 'v8-spacing-stable';
 
 // ──────────────────────────────────
 // Radio groups: field title → { option label → exact template key }
@@ -868,6 +868,7 @@ function appendRowEntry(masterBody, rowIndex, templateChoice, sheet, outputFolde
   var tplFile = DriveApp.getFileById(tplId);
   var tempFile = null;
   var tempDoc = null;
+  var filled = null;
   var appendedCount = 0;
   var fromIndex = 0;
 
@@ -882,10 +883,14 @@ function appendRowEntry(masterBody, rowIndex, templateChoice, sheet, outputFolde
     try {
       tempDoc = openDocWithRetry(tempFile.getId());
       mergeResponseIntoDoc(tempDoc, data, isEnglish);
-      // Use the SAME handle that was just merged. Reopening the fresh Drive copy
-      // cost ~2-5s per entry inside the Vercel 58s window for no benefit: a
-      // stale copy surfaces as an empty append below, and the retry loop
-      // already rebuilds from a fresh copy.
+      tempDoc.saveAndClose();
+      // Reopen for a clean read of the filled body (cached handles can lag).
+      // Deliberately restored after v7 read the in-memory handle instead: the
+      // fresh-copy handle can hold a partially-materialized body whose copy()
+      // differs from the persisted one, which showed up as spacing regressions
+      // in real batches. The ~2-5s per entry is a fair price; chunk timeouts
+      // are now recoverable via the batch resume mechanism instead.
+      filled = DocumentApp.openById(tempFile.getId());
       masterBody.appendPageBreak();
       // Remove the master's trailing empty paragraph(s) now sandwiched between
       // the previous entry's content and this break — otherwise one wraps onto
@@ -893,9 +898,9 @@ function appendRowEntry(masterBody, rowIndex, templateChoice, sheet, outputFolde
       // (blank page between entries).
       removeEmptyParagraphsBeforePageBreak(masterBody);
       fromIndex = masterBody.getNumChildren();
-      appendBodyElements(masterBody, tempDoc.getBody());
+      appendBodyElements(masterBody, filled.getBody());
       appendedCount = masterBody.getNumChildren() - fromIndex;
-      tempDoc.saveAndClose();
+      filled.saveAndClose();
       if (appendedCount > 0) break; // success
       // Empty append — undo the page break, then retry once with a fresh copy.
       if (attempt === 1) throw new Error('Template copy yielded no content after 2 attempts (Drive propagation).');
@@ -1381,8 +1386,26 @@ function runBatchSpacingSelfTest(rowIndex) {
     var left = full.match(/\{\{[^{}]+\}\}/g) || [];
     var childCount = masterBody.getNumChildren();
 
+    // Child-type chain per entry: pinpoints stray page breaks / trailing empty
+    // paragraphs inside the APPENDED region (P = paragraph, T = table, L = list
+    // item, B = page break, R = horizontal rule, I = inline image, ? = other).
+    var chain = [];
+    for (var ci = 0; ci < childCount; ci++) {
+      var ct = masterBody.getChild(ci).getType();
+      var letter = '?';
+      if (ct === DocumentApp.ElementType.PARAGRAPH) {
+        letter = masterBody.getChild(ci).asParagraph().getText().trim() === '' ? '.' : 'P';
+      } else if (ct === DocumentApp.ElementType.TABLE) { letter = 'T'; }
+      else if (ct === DocumentApp.ElementType.LIST_ITEM) { letter = 'L'; }
+      else if (ct === DocumentApp.ElementType.PAGE_BREAK) { letter = 'B'; }
+      else if (ct === DocumentApp.ElementType.HORIZONTAL_RULE) { letter = 'R'; }
+      else if (ct === DocumentApp.ElementType.INLINE_IMAGE) { letter = 'I'; }
+      chain.push(letter);
+    }
+
     lines.push('Children in master: ' + childCount + ' (page breaks in text: ' +
       (full.match(/\u000b/g) || []).length + ')');
+    lines.push('Child chain: ' + (chain.join('') || '(empty)'));
     lines.push('Header title occurrences: ' + headerCount + ' / 3 expected');
     lines.push('Document Code occurrences: ' + codeCount + ' / 3 expected');
     lines.push('Leftover {{...}} placeholders: ' + (left.length ? left.join(' ') : 'NONE'));
