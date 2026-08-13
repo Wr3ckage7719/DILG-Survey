@@ -16,7 +16,7 @@
 // If the "Diagnose Deployment" menu reports anything other than this,
 // the Apps Script project is running STALE code (files not re-pasted).
 // ──────────────────────────────────
-var MERGE_VERSION = 'v9.5-header-fill';
+var MERGE_VERSION = 'v9.5.1-keepwarm';
 
 // ──────────────────────────────────
 // Radio groups: field title → { option label → exact template key }
@@ -1100,7 +1100,11 @@ function openDocWithRetry(fileId) {
 // templateChoice: 'auto' (use row's "Wika ng sarbey") | 'en' | 'tl'
 // ──────────────────────────────────
 
-function generatePrintableForRow(rowIndex, templateChoice, sheet) {
+// Generate a filled printable doc for one response row. Returns the doc URL
+// string (the spreadsheet menu contract). When `out` is provided, it also gets
+// { url, leftovers } — the leftovers are computed from the STILL-OPEN copy so
+// the web endpoint never pays for a second DocumentApp.openByUrl.
+function generatePrintableForRow(rowIndex, templateChoice, sheet, out) {
   var data = readResponseRow(rowIndex, sheet);
   var isEnglish = resolveTemplateChoice(data, templateChoice);
   var templateDocId = isEnglish
@@ -1159,6 +1163,8 @@ function generatePrintableForRow(rowIndex, templateChoice, sheet) {
   }
 
   mergeResponseIntoDoc(copyDoc, data, isEnglish);
+  var docLeftovers = [];
+  try { docLeftovers = countLeftoverPlaceholders(copyDoc); } catch (e) { /* best-effort */ }
   copyDoc.saveAndClose();
 
   // Export PDF
@@ -1166,7 +1172,12 @@ function generatePrintableForRow(rowIndex, templateChoice, sheet) {
   var pdfName = fileName + '.pdf';
   outputFolder.createFile(pdfBlob).setName(pdfName);
 
-  return copyFile.getUrl();
+  var docUrl = copyFile.getUrl();
+  if (out) {
+    out.url = docUrl;
+    out.leftovers = docLeftovers;
+  }
+  return docUrl;
 }
 
 // ──────────────────────────────────
@@ -1582,13 +1593,12 @@ function generateBatchPrintableLocked(rowIndexes, templateChoice, masterDocId, i
   writeLastBatchMaster(masterDocId, doneRows);
 
   if (!isFinal) {
+    var pLeft = [];
+    try { pLeft = countLeftoverPlaceholders(masterDoc); } catch (e) { /* best-effort */ }
     masterDoc.saveAndClose();
     var partial = { ok: true, docId: masterDocId };
     if (failures.length) partial.failedRows = failures;
-    try {
-      var pLeft = countLeftoverPlaceholders(DocumentApp.openById(masterDocId));
-      if (pLeft.length) partial.leftovers = pLeft;
-    } catch (e) { /* best-effort */ }
+    if (pLeft.length) partial.leftovers = pLeft;
     return partial;
   }
 
@@ -1598,14 +1608,13 @@ function generateBatchPrintableLocked(rowIndexes, templateChoice, masterDocId, i
   // final chunk that ALSO converted the whole document to PDF routinely blew
   // past the ~58s budget and timed out (rows left in an ambiguous "may still be
   // in Drive" state even though the document itself completed).
+  var fLeft = [];
+  try { fLeft = countLeftoverPlaceholders(masterDoc); } catch (e) { /* best-effort */ }
   masterDoc.saveAndClose();
   var masterFileFinal = DriveApp.getFileById(masterDocId);
   var result = { ok: true, url: masterFileFinal.getUrl(), docId: masterDocId };
   if (failures.length) result.failedRows = failures;
-  try {
-    var fLeft = countLeftoverPlaceholders(DocumentApp.openById(masterDocId));
-    if (fLeft.length) result.leftovers = fLeft;
-  } catch (e) { /* best-effort */ }
+  if (fLeft.length) result.leftovers = fLeft;
   return result;
 }
 

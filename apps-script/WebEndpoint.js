@@ -28,14 +28,22 @@ function getWebAppUrl() {
   return prop || WEBAPP_URL;
 }
 
+// Ping the LIVE deployment on every keep-warm tick — unconditionally, via the
+// WEBAPP_URL constant — so a stale WEBAPP_URL script property can never let the
+// live deployment go cold again (a dead URL in that property is harmless: the
+// 404 ping fails fast and the live URL below still gets warmed).
 function keepWarm() {
-  var url = getWebAppUrl();
-  try {
-    UrlFetchApp.fetch(url, { muteHttpExceptions: true, followRedirects: true });
-    Logger.log('keepWarm: pinged ' + url);
-  } catch (err) {
-    Logger.log('keepWarm error: ' + err);
-  }
+  var urls = [WEBAPP_URL];
+  var propUrl = SCRIPT_PROP ? SCRIPT_PROP.getProperty('WEBAPP_URL') : null;
+  if (propUrl && urls.indexOf(propUrl) === -1) urls.push(propUrl);
+  urls.forEach(function (u) {
+    try {
+      UrlFetchApp.fetch(u, { muteHttpExceptions: true, followRedirects: true });
+      Logger.log('keepWarm: pinged ' + u);
+    } catch (err) {
+      Logger.log('keepWarm error (' + u + '): ' + err);
+    }
+  });
 }
 
 function installKeepWarmTrigger() {
@@ -334,16 +342,13 @@ function doAdminPrint(body, e) {
     // Same engine the spreadsheet menu uses ("Generate Printable Sheet").
     // Returns a Google Doc URL (or an error message string). The sheet is
     // pinned so the doc is generated from the SAME sheet the list came from.
-    var result = generatePrintableForRow(row, body.tpl || 'auto', getResponseSheet());
+    // Leftovers are computed inside the engine from the still-open copy — no
+    // second DocumentApp open on the hot path.
+    var outObj = {};
+    var result = generatePrintableForRow(row, body.tpl || 'auto', getResponseSheet(), outObj);
     if (result && result.indexOf('https://') === 0) {
       var out = { ok: true, url: result };
-      // Surface any unfilled {{...}} (e.g. letterhead keys in the document
-      // header section, which body-only replaceText cannot reach) instead of
-      // silently shipping a raw placeholder.
-      try {
-        var leftovers = countLeftoverPlaceholders(DocumentApp.openByUrl(result));
-        if (leftovers.length) out.leftovers = leftovers;
-      } catch (e) { /* leftover check is best-effort */ }
+      if (outObj.leftovers && outObj.leftovers.length) out.leftovers = outObj.leftovers;
       return jsonOut(out);
     }
     return jsonOut({ ok: false, error: 'generate_failed', detail: String(result || '') });
