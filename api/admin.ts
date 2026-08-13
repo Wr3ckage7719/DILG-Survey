@@ -407,7 +407,17 @@ async function handlePrint(req: IncomingMessage, res: ServerResponse): Promise<v
     sendJson(res, 400, { ok: false, error: 'invalid_row' });
     return;
   }
-  const upstream = await forwardToAppsScript('print', { token: body.token, row, tpl: body.tpl || 'auto' });
+  const upstream = await forwardToAppsScript(
+    'print',
+    { token: body.token, row, tpl: body.tpl || 'auto' },
+    // Retry once: Google's intermittent datacenter challenge answers a POST
+    // with an HTML block page instead of JSON — that's a fast, non-side-effecting
+    // failure, and the retry usually lands on a healthy egress IP. Budget stays
+    // under the 60s maxDuration (2 × 29s). A retry is skipped entirely when the
+    // first attempt actually timed out mid-generation (relay breaks on abort), so
+    // a running doc is never double-created.
+    { attempts: 2, attemptTimeoutMs: 29_000 },
+  );
   const json = upstream.json || { ok: false, error: 'upstream_error' };
   sendJson(res, json.ok === true ? 200 : upstream.status, json);
 }
