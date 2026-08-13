@@ -313,7 +313,10 @@ var SQD_CHECK_GLYPH = '☐';     // placeholder glyph shown in the template
 // and of N/A variants ("N/A", "N.A.", "Not applicable"). Returns null when
 // the cell is not a rating header.
 function sqdHeaderKeyOf(cellText) {
-  var cleaned = String(cellText || '').replace(/^[\s\u2610\u25A1\u2611\u2B1B\d.:\-()]+/, '').toLowerCase();
+  var cleaned = String(cellText || '')
+    .replace(/^[\s\u2610\u25A1\u2611\u2B1B\d.:\-()]+/, '')
+    .replace(/\s+/g, ' ')   // DOCX headers wrap: "Hindi\nsang-ayon" → "hindi sang-ayon"
+    .toLowerCase();
   var isNA = /^(n\s*\/\s*a|n\.a\.|not\s*applicable)(?=$|[\s(.:*;,-])/.test(cleaned);
   var labels = Object.keys(RATING_KEYS);
   for (var i = 0; i < labels.length; i++) {
@@ -678,6 +681,7 @@ function fillSqdTable(body, data) {
 
       var selected = selectedKeys[rowIdx];
       var selCol = sqdSelectedColumn(headerKeys, selected);
+      if (selected && selCol === -1) continue; // header can't map this selection — keep pass-1 result
       for (var c5 = 1; c5 < nc4; c5++) {
         var colKey = headerKeys[c5];
         if (colKey === undefined) continue;

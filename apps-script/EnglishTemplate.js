@@ -409,7 +409,10 @@ function tableText(table) {
 // Match a rating header cell, tolerating leading checkbox glyphs, numbers, codes:
 // "☐ Strongly agree", "5. Strongly agree", "Lubos na sang-ayon" (TL fallback)
 function ratingLabelOf(ct) {
-  var cleaned = ct.replace(/^[\s\u2610\u25A1\u2611\u2B1B\d.:\-()]+/, '').toLowerCase();
+  var cleaned = ct
+    .replace(/^[\s\u2610\u25A1\u2611\u2B1B\d.:\-()]+/, '')
+    .replace(/\s+/g, ' ')   // DOCX headers wrap across lines: "Hindi\nsang-ayon"
+    .toLowerCase();
   // N/A header cells vary: "N/A", "N/A ", "N/A (if not applicable)",
   // "Not applicable", "N.A." — accept any short variant.
   var isNA = /^(n\s*\/\s*a|n\.a\.|not\s*applicable)(?=$|[\s(.:*;,-])/.test(cleaned);
