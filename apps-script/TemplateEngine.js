@@ -15,7 +15,7 @@
 // If the "Diagnose Deployment" menu reports anything other than this,
 // the Apps Script project is running STALE code (files not re-pasted).
 // ──────────────────────────────────
-var MERGE_VERSION = 'v5-batch-header-fill';
+var MERGE_VERSION = 'v6-batch-spacing-fix';
 
 // ──────────────────────────────────
 // Radio groups: field title → { option label → exact template key }
@@ -887,6 +887,11 @@ function appendRowEntry(masterBody, rowIndex, templateChoice, sheet, outputFolde
       // Reopen for a clean read of the filled body (cached handles can lag).
       filled = DocumentApp.openById(tempFile.getId());
       masterBody.appendPageBreak();
+      // Remove the master's trailing empty paragraph(s) now sandwiched between
+      // the previous entry's content and this break — otherwise one wraps onto
+      // its own page when the previous entry fills its last page exactly
+      // (blank page between entries).
+      removeEmptyParagraphsBeforePageBreak(masterBody);
       fromIndex = masterBody.getNumChildren();
       appendBodyElements(masterBody, filled.getBody());
       appendedCount = masterBody.getNumChildren() - fromIndex;
@@ -923,6 +928,52 @@ function appendRowEntry(masterBody, rowIndex, templateChoice, sheet, outputFolde
 function removeChildAt(container, index) {
   if (index < 0 || index >= container.getNumChildren()) return;
   try { container.getChild(index).removeFromParent(); } catch (e) { /* best-effort */ }
+}
+
+// A Google Doc body always ends with an empty paragraph (the template's own
+// trailing addEmpty()). When a batch entry's last page is exactly full, that
+// empty paragraph wraps onto its own page and the standalone page break that
+// follows pushes the next entry one page further — the blank pages seen between
+// batch entries (and the extra blank line at the bottom of every entry whose
+// last page isn't full). Removes every empty paragraph sitting immediately
+// before a just-appended page break so the break always follows real content
+// and nothing can wrap into a blank page. The target paragraph is never the
+// last body child at this point (the page break is), so removal is always
+// legal; the guard caps the work.
+function removeEmptyParagraphsBeforePageBreak(body) {
+  for (var guard = 0; guard < 20; guard++) {
+    var n = body.getNumChildren();
+    if (n < 2) return;
+    var prev = body.getChild(n - 2);
+    if (prev.getType() !== DocumentApp.ElementType.PARAGRAPH) return;
+    if (prev.asParagraph().getText().trim() !== '') return;
+    try { prev.removeFromParent(); } catch (e) { return; }
+  }
+}
+
+// Spacing-invariant check for the diagnostic: returns a list of structural
+// faults that render as blank pages / extra spacing (empty paragraph directly
+// before a page break, body ending in a page break or an empty paragraph).
+function findSpacingFaults(body) {
+  var faults = [];
+  var n = body.getNumChildren();
+  for (var i = 0; i < n; i++) {
+    if (body.getChild(i).getType() === DocumentApp.ElementType.PAGE_BREAK && i > 0) {
+      var prev = body.getChild(i - 1);
+      if (prev.getType() === DocumentApp.ElementType.PARAGRAPH && prev.asParagraph().getText().trim() === '') {
+        faults.push('empty paragraph before page break at child ' + i);
+      }
+    }
+  }
+  if (n > 0) {
+    var last = body.getChild(n - 1);
+    if (last.getType() === DocumentApp.ElementType.PAGE_BREAK) {
+      faults.push('body ends with a page break');
+    } else if (last.getType() === DocumentApp.ElementType.PARAGRAPH && last.asParagraph().getText().trim() === '') {
+      faults.push('body ends with an empty paragraph');
+    }
+  }
+  return faults;
 }
 
 // rowIndexes: array of spreadsheet row numbers (>= 2)
@@ -1108,6 +1159,7 @@ function diagnoseBatchAppend(rowIndex) {
     }
 
     masterBody.appendPageBreak();
+    removeEmptyParagraphsBeforePageBreak(masterBody);
     var fromIdx = masterBody.getNumChildren();
     appendBodyElements(masterBody, filledBody);
     var appended = masterBody.getNumChildren() - fromIdx;
@@ -1123,6 +1175,9 @@ function diagnoseBatchAppend(rowIndex) {
     lines.push('  Appended region has "Document Code": ' + (full.indexOf('Document Code') !== -1));
     lines.push('  Leftover {{...}} anywhere in master: ' + (leftAll.length ? leftAll.join(' ') : 'NONE'));
     lines.push(appended === 0 ? '  ⚠ NO CONTENT APPENDED — stale/empty template copy confirmed.' : '  ✓ ' + appended + ' elements appended (expected if the header survived).');
+    var spacingFaults = findSpacingFaults(masterBody);
+    lines.push('  Spacing faults (empty ¶ before a page break / trailing break or empty ¶): ' +
+      (spacingFaults.length ? spacingFaults.join('; ') : 'NONE ✓'));
 
     masterDoc.saveAndClose();
   } catch (err) {
